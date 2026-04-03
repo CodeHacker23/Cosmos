@@ -31,6 +31,7 @@ interface CosmicSceneProps {
   galaxySignals: GalaxySignalDefinition[];
   activeSignalIds: string[];
   foundSignalIds: string[];
+  featuredSignalId: string | null;
   onRevealGalaxySignal: (signalId: string, screenPosition: ScreenSpacePoint) => void;
 }
 
@@ -468,6 +469,7 @@ export function CosmicScene({
   galaxySignals,
   activeSignalIds,
   foundSignalIds,
+  featuredSignalId,
   onRevealGalaxySignal,
 }: CosmicSceneProps) {
   const bloomIntensity =
@@ -524,6 +526,7 @@ export function CosmicScene({
       <GalaxyBirthField phase={phase} singularityProgress={singularityProgress} />
       <GalaxySearchSignals
         activeSignalIds={activeSignalIds}
+        featuredSignalId={featuredSignalId}
         foundSignalIds={foundSignalIds}
         introState={galaxyIntroState}
         onRevealSignal={onRevealGalaxySignal}

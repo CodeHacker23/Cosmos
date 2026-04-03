@@ -59,6 +59,7 @@ export function useExperienceController() {
     useState<GalaxySearchIntroState>('preface');
   const [foundSignalIds, setFoundSignalIds] = useState<string[]>([]);
   const [revealedArtifactId, setRevealedArtifactId] = useState<string | null>(null);
+  const [featuredSignalId, setFeaturedSignalId] = useState<string | null>(null);
   const [delayedSignalReady, setDelayedSignalReady] = useState(false);
   const transitionStartedRef = useRef(false);
   const transitionTimeoutRef = useRef<number | null>(null);
@@ -169,6 +170,7 @@ export function useExperienceController() {
       setGalaxyIntroState('preface');
       setFoundSignalIds([]);
       setRevealedArtifactId(null);
+      setFeaturedSignalId(null);
       setDelayedSignalReady(false);
 
       if (galaxyIntroTimeoutRef.current !== null) {
@@ -207,7 +209,8 @@ export function useExperienceController() {
       galaxyIntroState !== 'active' ||
       delayedSignalReady ||
       delayedSignalId === null ||
-      foundSignalIds.length < 2
+      foundSignalIds.length < 2 ||
+      revealedArtifactId !== null
     ) {
       if (delayedSignalTimeoutRef.current !== null) {
         window.clearTimeout(delayedSignalTimeoutRef.current);
@@ -220,7 +223,7 @@ export function useExperienceController() {
       setDelayedSignalReady(true);
       vibrateIfPossible([18, 60, 18]);
       delayedSignalTimeoutRef.current = null;
-    }, 6200);
+    }, 9800);
 
     return () => {
       if (delayedSignalTimeoutRef.current !== null) {
@@ -235,6 +238,7 @@ export function useExperienceController() {
     galaxyIntroState,
     galaxyStage,
     phase,
+    revealedArtifactId,
   ]);
 
   const beginSingularity = useCallback(() => {
@@ -344,6 +348,7 @@ export function useExperienceController() {
 
     vibrateIfPossible([12, 28, 18]);
     setRevealedArtifactId(signal.artifactId);
+    setFeaturedSignalId(signal.id);
     setFoundSignalIds((current) =>
       current.includes(signalId) ? current : [...current, signalId],
     );
@@ -384,5 +389,6 @@ export function useExperienceController() {
     beginGalaxySearch,
     revealGalaxySignal,
     closeGalaxyReveal,
+    featuredSignalId,
   };
 }

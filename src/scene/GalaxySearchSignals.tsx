@@ -16,6 +16,7 @@ interface GalaxySearchSignalsProps {
   signals: GalaxySignalDefinition[];
   activeSignalIds: string[];
   foundSignalIds: string[];
+  featuredSignalId: string | null;
   onRevealSignal: (signalId: string, screenPosition: ScreenSpacePoint) => void;
 }
 
@@ -26,6 +27,7 @@ export function GalaxySearchSignals({
   signals,
   activeSignalIds,
   foundSignalIds,
+  featuredSignalId,
   onRevealSignal,
 }: GalaxySearchSignalsProps) {
   const [hoveredSignalId, setHoveredSignalId] = useState<string | null>(null);
@@ -76,6 +78,7 @@ export function GalaxySearchSignals({
       const [baseX, baseY, baseZ] = signal.position;
       const isFound = foundSignalIds.includes(signal.id);
       const isHovered = hoveredSignalId === signal.id;
+      const isFeatured = featuredSignalId === signal.id;
       let targetX = baseX;
       let targetY = baseY;
       let targetZ = baseZ;
@@ -103,14 +106,20 @@ export function GalaxySearchSignals({
       group.position.y = THREE.MathUtils.lerp(group.position.y, targetY, delta * 3.2);
       group.position.z = THREE.MathUtils.lerp(group.position.z, targetZ, delta * 3.2);
 
+      const featuredPulse = isFeatured ? 1 + Math.sin(time * 3.1 + index) * 0.14 : 1;
       const coreScaleBase = signal.behavior === 'veil' ? 1.38 : 1;
-      const coreScale = (isFound ? 1.18 : coreScaleBase) * pulse * (isHovered ? 1.12 : 1);
+      const coreScale =
+        (isFound ? 1.18 : coreScaleBase) * pulse * featuredPulse * (isHovered ? 1.12 : 1);
       core.scale.setScalar(coreScale);
       halo.scale.setScalar(
-        (isFound ? 2.2 : signal.behavior === 'veil' ? 1.22 : 1.7) * pulse * (isHovered ? 1.2 : 1),
+        (isFound ? 2.2 : signal.behavior === 'veil' ? 1.22 : 1.7) *
+          pulse *
+          (isFeatured ? 1.42 : 1) *
+          (isHovered ? 1.2 : 1),
       );
       ring.scale.setScalar(
         (isFound ? 2.7 : signal.behavior === 'veil' ? 1.65 : 2.15) *
+          (isFeatured ? 1.26 : 1) *
           (1 + Math.sin(time * 0.9 + index) * 0.05),
       );
       ring.rotation.z += delta * (0.26 + index * 0.04);
@@ -130,7 +139,9 @@ export function GalaxySearchSignals({
           signal.behavior === 'veil' && !isHovered && !isFound
             ? THREE.MathUtils.lerp(0.9, 0.48, awakeProgress)
             : isFound
-              ? 0.96
+              ? isFeatured
+                ? 1
+                : 0.96
               : 0.82;
       }
 
@@ -139,7 +150,9 @@ export function GalaxySearchSignals({
         haloMaterial.opacity =
           signal.behavior === 'veil' && !isHovered && !isFound
             ? THREE.MathUtils.lerp(0.02, 0.08, awakeProgress)
-            : isHovered
+            : isFeatured
+              ? 0.28
+              : isHovered
               ? 0.2
               : isFound
                 ? 0.16
@@ -151,7 +164,9 @@ export function GalaxySearchSignals({
         ringMaterial.opacity =
           signal.behavior === 'veil' && !isHovered && !isFound
             ? THREE.MathUtils.lerp(0.01, 0.06, awakeProgress)
-            : (isHovered && isInteractive) || isFound
+            : isFeatured
+              ? 0.34
+              : (isHovered && isInteractive) || isFound
               ? 0.22
               : 0.03;
       }

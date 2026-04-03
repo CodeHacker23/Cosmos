@@ -35,6 +35,7 @@ export default function App() {
     introBeats,
     singularityProgress,
     galaxySearchProgress,
+    featuredSignalId,
     unlock,
     updateSlider,
     enableOrientation,
@@ -128,6 +129,7 @@ export default function App() {
           assessment={calibration}
           beats={introBeats}
           foundSignalIds={galaxySearchProgress.foundSignalIds}
+          featuredSignalId={featuredSignalId}
           galaxyIntroState={galaxySearchProgress.introState}
           galaxySignals={storyConfig.galaxy.signals}
           galaxyStage={galaxySearchProgress.stage}
