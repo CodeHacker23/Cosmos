@@ -63,8 +63,8 @@ void main() {
 
   float core = smoothstep(0.08, 0.0, dist);
   float halo = smoothstep(0.44, 0.03, dist);
-  float alpha = clamp(core * 1.45 + halo * 0.18, 0.0, 1.0) * vAlpha;
-  vec3 color = vTint * (1.02 + core * 1.8 + halo * 0.08);
+  float alpha = clamp(core * 1.52 + halo * 0.2, 0.0, 1.0) * vAlpha;
+  vec3 color = vTint * (1.08 + core * 2.05 + halo * 0.12);
 
   gl_FragColor = vec4(color, alpha);
 }
@@ -95,9 +95,9 @@ export function GalaxyBirthField({
     const origins = new Float32Array(GALAXY_PARTICLE_COUNT * 3);
     const scales = new Float32Array(GALAXY_PARTICLE_COUNT);
     const tints = new Float32Array(GALAXY_PARTICLE_COUNT * 3);
-    const centerColor = new THREE.Color('#fff1cf');
-    const warmArmColor = new THREE.Color('#ffad78');
-    const coolArmColor = new THREE.Color('#7cc8ff');
+    const centerColor = new THREE.Color('#fff3d7');
+    const warmArmColor = new THREE.Color('#ff944d');
+    const coolArmColor = new THREE.Color('#63b8ff');
 
     for (let index = 0; index < GALAXY_PARTICLE_COUNT; index += 1) {
       const i3 = index * 3;
@@ -121,8 +121,10 @@ export function GalaxyBirthField({
 
       scales[index] = 0.4 + Math.pow(Math.random(), 0.75) * 1.8;
 
-      const tint = warmArmColor.clone().lerp(coolArmColor, arm === 1 ? 0.65 : arm === 2 ? 0.9 : 0.25);
-      tint.lerp(centerColor, Math.max(0, 1 - radius / 12) * 0.45);
+      const tint = warmArmColor
+        .clone()
+        .lerp(coolArmColor, arm === 1 ? 0.72 : arm === 2 ? 0.96 : 0.14);
+      tint.lerp(centerColor, Math.max(0, 1 - radius / 12) * 0.32);
       tints[i3] = tint.r;
       tints[i3 + 1] = tint.g;
       tints[i3 + 2] = tint.b;
@@ -163,8 +165,8 @@ export function GalaxyBirthField({
 
     if (groupRef.current) {
       groupRef.current.visible = phase === 'galaxy' || birth > 0.06;
-      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, 0, delta * 2.5);
-      groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, 0, delta * 2.5);
+      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, -0.1, delta * 2.5);
+      groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, -0.12, delta * 2.5);
       groupRef.current.position.z = THREE.MathUtils.lerp(-6.1, -8.2, birth);
       groupRef.current.rotation.y = THREE.MathUtils.lerp(
         groupRef.current.rotation.y,

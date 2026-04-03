@@ -5,12 +5,17 @@ import * as THREE from 'three';
 import type {
   CalibrationAssessment,
   ExperiencePhase,
+  GalaxySearchIntroState,
+  GalaxySignalDefinition,
+  GalaxyStage,
   IntroBeats,
+  ScreenSpacePoint,
   SliderState,
 } from '../features/experience/model/types';
 import { CityAnchors } from './CityAnchors';
 import { DeepSpaceBackdrop } from './DeepSpaceBackdrop';
 import { GalaxyBirthField } from './GalaxyBirthField';
+import { GalaxySearchSignals } from './GalaxySearchSignals';
 import { IntroFocalPoint } from './IntroFocalPoint';
 import { Starfield } from './Starfield';
 
@@ -21,6 +26,12 @@ interface CosmicSceneProps {
   orientationEnabled: boolean;
   beats: IntroBeats;
   singularityProgress: number;
+  galaxyStage: GalaxyStage;
+  galaxyIntroState: GalaxySearchIntroState;
+  galaxySignals: GalaxySignalDefinition[];
+  activeSignalIds: string[];
+  foundSignalIds: string[];
+  onRevealGalaxySignal: (signalId: string, screenPosition: ScreenSpacePoint) => void;
 }
 
 interface CameraRigProps {
@@ -76,8 +87,13 @@ function CameraRig({
     const pointerY = state.pointer.x * 0.18;
     const collapse = THREE.MathUtils.smootherstep(singularityProgress, 0.06, 0.44);
     const flash = flashBand(singularityProgress, 0.46, 0.58, 0.72);
+    const impact = flashBand(singularityProgress, 0.512, 0.528, 0.556);
+    const aftershock = flashBand(singularityProgress, 0.556, 0.61, 0.72);
     const aftermath = THREE.MathUtils.smootherstep(singularityProgress, 0.72, 1);
-    const shake = phase === 'singularity' ? flash * 0.24 + aftermath * 0.035 : 0;
+    const shake =
+      phase === 'singularity'
+        ? impact * 0.62 + aftershock * 0.18 + aftermath * 0.03
+        : 0;
     const time = state.clock.elapsedTime;
     const motionX = orientationEnabled ? motionTarget.current.x : pointerX;
     const motionY = orientationEnabled ? motionTarget.current.y : pointerY;
@@ -90,16 +106,18 @@ function CameraRig({
         : phase === 'calibration'
           ? 18.5
           : phase === 'singularity'
-            ? 18.5 - collapse * 4.6 - flash * 1.3 + aftermath * 1.2
+            ? 18.5 - collapse * 4.6 - flash * 1.3 - impact * 0.95 + aftermath * 1.2
             : 14.5;
 
     const shakeX =
       phase === 'singularity'
-        ? Math.sin(time * 28) * shake * 0.22 + Math.sin(time * 51 + 0.8) * shake * 0.09
+        ? Math.sin(time * 42) * shake * 0.26 +
+          Math.sin(time * 69 + 0.8) * shake * 0.11
         : 0;
     const shakeY =
       phase === 'singularity'
-        ? Math.cos(time * 34) * shake * 0.18 + Math.sin(time * 46 + 1.7) * shake * 0.08
+        ? Math.cos(time * 46) * shake * 0.22 +
+          Math.sin(time * 63 + 1.7) * shake * 0.1
         : 0;
 
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, delta * 1.4);
@@ -445,6 +463,12 @@ export function CosmicScene({
   orientationEnabled,
   beats,
   singularityProgress,
+  galaxyStage,
+  galaxyIntroState,
+  galaxySignals,
+  activeSignalIds,
+  foundSignalIds,
+  onRevealGalaxySignal,
 }: CosmicSceneProps) {
   const bloomIntensity =
     phase === 'singularity'
@@ -498,6 +522,15 @@ export function CosmicScene({
         <SingularityField phase={phase} singularityProgress={singularityProgress} />
       )}
       <GalaxyBirthField phase={phase} singularityProgress={singularityProgress} />
+      <GalaxySearchSignals
+        activeSignalIds={activeSignalIds}
+        foundSignalIds={foundSignalIds}
+        introState={galaxyIntroState}
+        onRevealSignal={onRevealGalaxySignal}
+        phase={phase}
+        signals={galaxySignals}
+        stage={galaxyStage}
+      />
       <CityAnchors beats={beats} phase={phase} singularityProgress={singularityProgress} />
       {phase !== 'galaxy' && (
         <EnergyCore

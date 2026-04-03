@@ -22,6 +22,25 @@ interface StarfieldProps {
 
 const PARTICLE_COUNT = 42000;
 
+const clampDelta = (delta: number) => Math.min(delta, 1 / 30);
+
+const smoothDamp = (
+  current: number,
+  target: number,
+  velocity: { value: number },
+  smoothTime: number,
+  delta: number,
+) => {
+  const safeSmoothTime = Math.max(0.0001, smoothTime);
+  const omega = 2 / safeSmoothTime;
+  const x = omega * delta;
+  const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = current - target;
+  const temp = (velocity.value + omega * change) * delta;
+  velocity.value = (velocity.value - omega * temp) * exp;
+  return target + (change + temp) * exp;
+};
+
 export function Starfield({
   beats,
   phase,
@@ -69,6 +88,14 @@ export function Starfield({
     }),
     [],
   );
+  const sliderMotionRef = useRef({
+    gravityVelocity: { value: 0 },
+    resonanceVelocity: { value: 0 },
+    syncVelocity: { value: 0 },
+    rotationVelocity: { value: 0 },
+    driftVelocity: { value: 0 },
+    scaleVelocity: { value: 0 },
+  });
 
   useFrame((_, delta) => {
     const material = pointsRef.current?.material;
@@ -76,8 +103,8 @@ export function Starfield({
       return;
     }
 
-    material.uniforms.uTime.value += delta;
-    const sliderLerp = phase === 'calibration' ? 0.026 : 0.05;
+    const frameDelta = clampDelta(delta);
+    material.uniforms.uTime.value += frameDelta;
     material.uniforms.uMatch.value = THREE.MathUtils.lerp(
       material.uniforms.uMatch.value,
       assessment.match,
@@ -90,18 +117,36 @@ export function Starfield({
     );
     material.uniforms.uGravity.value = THREE.MathUtils.lerp(
       material.uniforms.uGravity.value,
-      sliders.gravity / 100,
-      sliderLerp,
+      smoothDamp(
+        material.uniforms.uGravity.value,
+        sliders.gravity / 100,
+        sliderMotionRef.current.gravityVelocity,
+        phase === 'calibration' ? 0.34 : 0.22,
+        frameDelta,
+      ),
+      0.68,
     );
     material.uniforms.uResonance.value = THREE.MathUtils.lerp(
       material.uniforms.uResonance.value,
-      sliders.resonance / 100,
-      sliderLerp,
+      smoothDamp(
+        material.uniforms.uResonance.value,
+        sliders.resonance / 100,
+        sliderMotionRef.current.resonanceVelocity,
+        phase === 'calibration' ? 0.4 : 0.24,
+        frameDelta,
+      ),
+      0.68,
     );
     material.uniforms.uSync.value = THREE.MathUtils.lerp(
       material.uniforms.uSync.value,
-      sliders.sync / 100,
-      sliderLerp,
+      smoothDamp(
+        material.uniforms.uSync.value,
+        sliders.sync / 100,
+        sliderMotionRef.current.syncVelocity,
+        phase === 'calibration' ? 0.42 : 0.26,
+        frameDelta,
+      ),
+      0.68,
     );
     material.uniforms.uReveal.value = THREE.MathUtils.lerp(
       material.uniforms.uReveal.value,
@@ -134,7 +179,14 @@ export function Starfield({
           : phase === 'galaxy'
             ? 0.00018
             : 0.00028 + gravityInfluence * 0.00082;
-      pointsRef.current.rotation.y += targetRotationY;
+      const inertialRotationY = smoothDamp(
+        0,
+        targetRotationY,
+        sliderMotionRef.current.rotationVelocity,
+        phase === 'calibration' ? 0.28 : 0.18,
+        frameDelta,
+      );
+      pointsRef.current.rotation.y += inertialRotationY;
       pointsRef.current.rotation.x = THREE.MathUtils.lerp(
         pointsRef.current.rotation.x,
         phase === 'singularity'
@@ -142,27 +194,31 @@ export function Starfield({
           : phase === 'galaxy'
             ? 0.07
             : 0.04,
-        phase === 'singularity' ? 0.045 : 0.03,
+        phase === 'singularity' ? 0.045 : 0.022,
       );
       pointsRef.current.rotation.z = THREE.MathUtils.lerp(
         pointsRef.current.rotation.z,
         phase === 'galaxy' ? 0.012 : 0,
-        phase === 'singularity' ? 0.025 : 0.03,
+        phase === 'singularity' ? 0.025 : 0.02,
       );
-      pointsRef.current.position.z = THREE.MathUtils.lerp(
+      pointsRef.current.position.z = smoothDamp(
         pointsRef.current.position.z,
         phase === 'galaxy' ? -14 : 0,
-        phase === 'singularity' ? 0.03 : 0.025,
+        sliderMotionRef.current.driftVelocity,
+        phase === 'galaxy' ? 0.85 : 0.42,
+        frameDelta,
       );
       pointsRef.current.scale.setScalar(
-        THREE.MathUtils.lerp(
+        smoothDamp(
           pointsRef.current.scale.x,
           phase === 'calibration'
             ? 1 + Math.sin(material.uniforms.uTime.value * (0.48 + syncInfluence * 0.42)) * syncInfluence * 0.026
             : phase === 'galaxy'
               ? 0.9
             : 1,
-          phase === 'singularity' ? 0.04 : 0.035,
+          sliderMotionRef.current.scaleVelocity,
+          phase === 'singularity' ? 0.22 : 0.38,
+          frameDelta,
         ),
       );
     }

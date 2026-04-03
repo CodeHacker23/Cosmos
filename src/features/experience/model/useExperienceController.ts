@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { storyConfig } from '../../../content/storyConfig';
 import { assessCalibration } from './calibration';
 import type {
+  GalaxySearchProgress,
+  GalaxySearchIntroState,
+  GalaxyStage,
   ExperiencePhase,
   IntroBeat,
   IntroBeats,
@@ -51,19 +54,64 @@ export function useExperienceController() {
   const [orientationEnabled, setOrientationEnabled] = useState(false);
   const [introProgress, setIntroProgress] = useState(0);
   const [singularityProgress, setSingularityProgress] = useState(0);
+  const [galaxyStage, setGalaxyStage] = useState<GalaxyStage>('search');
+  const [galaxyIntroState, setGalaxyIntroState] =
+    useState<GalaxySearchIntroState>('preface');
+  const [foundSignalIds, setFoundSignalIds] = useState<string[]>([]);
+  const [revealedArtifactId, setRevealedArtifactId] = useState<string | null>(null);
+  const [delayedSignalReady, setDelayedSignalReady] = useState(false);
   const transitionStartedRef = useRef(false);
   const transitionTimeoutRef = useRef<number | null>(null);
+  const galaxyIntroTimeoutRef = useRef<number | null>(null);
+  const delayedSignalTimeoutRef = useRef<number | null>(null);
 
   const calibration = useMemo(
     () => assessCalibration(sliders, storyConfig.calibration.target),
     [sliders],
   );
   const introBeats = useMemo(() => getIntroBeats(introProgress), [introProgress]);
+  const totalGalaxySignals = storyConfig.galaxy.signals.length;
+  const delayedSignalId =
+    storyConfig.galaxy.signals.find((signal) => signal.behavior === 'veil')?.id ?? null;
+  const activeSignalIds = useMemo(
+    () =>
+      storyConfig.galaxy.signals
+        .filter((signal) => signal.id !== delayedSignalId || delayedSignalReady)
+        .map((signal) => signal.id),
+    [delayedSignalId, delayedSignalReady],
+  );
+  const galaxySearchProgress = useMemo<GalaxySearchProgress>(
+    () => ({
+      stage: galaxyStage,
+      foundSignalIds,
+      revealedArtifactId,
+      introState: galaxyIntroState,
+      activeSignalIds,
+      progress: totalGalaxySignals === 0 ? 0 : foundSignalIds.length / totalGalaxySignals,
+      allFound: foundSignalIds.length >= totalGalaxySignals,
+    }),
+    [
+      activeSignalIds,
+      foundSignalIds,
+      galaxyIntroState,
+      galaxyStage,
+      revealedArtifactId,
+      totalGalaxySignals,
+    ],
+  );
 
   useEffect(
     () => () => {
       if (transitionTimeoutRef.current !== null) {
         window.clearTimeout(transitionTimeoutRef.current);
+      }
+
+      if (galaxyIntroTimeoutRef.current !== null) {
+        window.clearTimeout(galaxyIntroTimeoutRef.current);
+      }
+
+      if (delayedSignalTimeoutRef.current !== null) {
+        window.clearTimeout(delayedSignalTimeoutRef.current);
       }
     },
     [],
@@ -114,6 +162,80 @@ export function useExperienceController() {
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
   }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'galaxy') {
+      setGalaxyStage('search');
+      setGalaxyIntroState('preface');
+      setFoundSignalIds([]);
+      setRevealedArtifactId(null);
+      setDelayedSignalReady(false);
+
+      if (galaxyIntroTimeoutRef.current !== null) {
+        window.clearTimeout(galaxyIntroTimeoutRef.current);
+        galaxyIntroTimeoutRef.current = null;
+      }
+
+      if (delayedSignalTimeoutRef.current !== null) {
+        window.clearTimeout(delayedSignalTimeoutRef.current);
+        delayedSignalTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (
+      galaxyStage === 'search' &&
+      revealedArtifactId === null &&
+      foundSignalIds.length >= totalGalaxySignals &&
+      totalGalaxySignals > 0
+    ) {
+      setGalaxyStage('manifest');
+    }
+  }, [
+    foundSignalIds.length,
+    galaxyIntroState,
+    galaxyStage,
+    phase,
+    revealedArtifactId,
+    totalGalaxySignals,
+  ]);
+
+  useEffect(() => {
+    if (
+      phase !== 'galaxy' ||
+      galaxyStage !== 'search' ||
+      galaxyIntroState !== 'active' ||
+      delayedSignalReady ||
+      delayedSignalId === null ||
+      foundSignalIds.length < 2
+    ) {
+      if (delayedSignalTimeoutRef.current !== null) {
+        window.clearTimeout(delayedSignalTimeoutRef.current);
+        delayedSignalTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    delayedSignalTimeoutRef.current = window.setTimeout(() => {
+      setDelayedSignalReady(true);
+      vibrateIfPossible([18, 60, 18]);
+      delayedSignalTimeoutRef.current = null;
+    }, 6200);
+
+    return () => {
+      if (delayedSignalTimeoutRef.current !== null) {
+        window.clearTimeout(delayedSignalTimeoutRef.current);
+        delayedSignalTimeoutRef.current = null;
+      }
+    };
+  }, [
+    delayedSignalId,
+    delayedSignalReady,
+    foundSignalIds.length,
+    galaxyIntroState,
+    galaxyStage,
+    phase,
+  ]);
 
   const beginSingularity = useCallback(() => {
     if (transitionStartedRef.current) {
@@ -210,6 +332,41 @@ export function useExperienceController() {
     return true;
   }, []);
 
+  const revealGalaxySignal = useCallback((signalId: string) => {
+    if (phase !== 'galaxy' || galaxyStage !== 'search' || galaxyIntroState !== 'active') {
+      return;
+    }
+
+    const signal = storyConfig.galaxy.signals.find((entry) => entry.id === signalId);
+    if (!signal || !activeSignalIds.includes(signalId)) {
+      return;
+    }
+
+    vibrateIfPossible([12, 28, 18]);
+    setRevealedArtifactId(signal.artifactId);
+    setFoundSignalIds((current) =>
+      current.includes(signalId) ? current : [...current, signalId],
+    );
+  }, [activeSignalIds, galaxyIntroState, galaxyStage, phase]);
+
+  const closeGalaxyReveal = useCallback(() => {
+    setRevealedArtifactId(null);
+  }, []);
+
+  const beginGalaxySearch = useCallback(() => {
+    if (phase !== 'galaxy' || galaxyStage !== 'search' || galaxyIntroState !== 'preface') {
+      return;
+    }
+
+    setGalaxyIntroState('dissolving');
+    vibrateIfPossible([10, 24, 12]);
+
+    galaxyIntroTimeoutRef.current = window.setTimeout(() => {
+      setGalaxyIntroState('active');
+      galaxyIntroTimeoutRef.current = null;
+    }, 5000);
+  }, [galaxyIntroState, galaxyStage, phase]);
+
   return {
     phase,
     sliders,
@@ -220,8 +377,12 @@ export function useExperienceController() {
     introBeats,
     introReady: introBeats.lockReadyBeat.progress >= 0.98,
     singularityProgress,
+    galaxySearchProgress,
     unlock,
     updateSlider,
     enableOrientation,
+    beginGalaxySearch,
+    revealGalaxySignal,
+    closeGalaxyReveal,
   };
 }

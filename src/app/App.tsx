@@ -1,14 +1,31 @@
+import { useState } from 'react';
 import { storyConfig } from '../content/storyConfig';
 import { CalibrationPanel } from '../features/calibration/ui/CalibrationPanel';
 import { useExperienceController } from '../features/experience/model/useExperienceController';
+import { GalaxySearchPanel } from '../features/galaxy-search/ui/GalaxySearchPanel';
 import { GalaxyManifest } from '../features/galaxy/ui/GalaxyManifest';
 import { TerminalGate } from '../features/terminal/ui/TerminalGate';
 import { SingularityOverlay } from '../features/transition/ui/SingularityOverlay';
 import { CosmicScene } from '../scene/CosmicScene';
 import { useScheduledAudioCues } from '../shared/hooks/useScheduledAudioCues';
 import { DevStatus } from '../shared/ui/DevStatus';
+import type { ScreenSpacePoint } from '../features/experience/model/types';
+
+const flashBand = (value: number, start: number, peak: number, end: number) => {
+  if (value <= start || value >= end) {
+    return 0;
+  }
+
+  if (value <= peak) {
+    return (value - start) / (peak - start);
+  }
+
+  return 1 - (value - peak) / (end - peak);
+};
 
 export default function App() {
+  const [revealedSignalScreenPosition, setRevealedSignalScreenPosition] =
+    useState<ScreenSpacePoint | null>(null);
   const {
     phase,
     sliders,
@@ -17,9 +34,13 @@ export default function App() {
     orientationEnabled,
     introBeats,
     singularityProgress,
+    galaxySearchProgress,
     unlock,
     updateSlider,
     enableOrientation,
+    beginGalaxySearch,
+    revealGalaxySignal,
+    closeGalaxyReveal,
   } = useExperienceController();
 
   useScheduledAudioCues([
@@ -52,13 +73,38 @@ export default function App() {
   const headerVisible = phase !== 'terminal' || introBeats.terminalRevealBeat.progress >= 0.72;
   const overlayVisible =
     phase !== 'terminal' || introBeats.terminalRevealBeat.progress >= 0.42;
-  const compactHeader = phase === 'calibration' || phase === 'singularity';
+  const compactHeader =
+    phase === 'calibration' ||
+    phase === 'singularity' ||
+    (phase === 'galaxy' && galaxySearchProgress.stage === 'search');
+  const explosionFlash =
+    phase === 'singularity'
+      ? flashBand(singularityProgress, 0.512, 0.528, 0.548)
+      : 0;
+  const manifestArtifacts = storyConfig.galaxy.artifacts.map((artifact) => ({
+    ...artifact,
+    status: 'active' as const,
+  }));
+
+  const handleRevealGalaxySignal = (signalId: string, screenPosition: ScreenSpacePoint) => {
+    setRevealedSignalScreenPosition(screenPosition);
+    revealGalaxySignal(signalId);
+  };
+
+  const handleCloseGalaxyReveal = () => {
+    setRevealedSignalScreenPosition(null);
+    closeGalaxyReveal();
+  };
 
   return (
     <main className={`app-shell app-shell--${phase}`}>
       <div
         className="app-shell__intro-veil"
         style={{ opacity: introVeilOpacity }}
+      />
+      <div
+        className="app-shell__flashbang"
+        style={{ opacity: explosionFlash }}
       />
       <div className="app-shell__noise" />
       <div className="app-shell__gradient" />
@@ -78,8 +124,14 @@ export default function App() {
 
       <div className="scene-layer">
         <CosmicScene
+          activeSignalIds={galaxySearchProgress.activeSignalIds}
           assessment={calibration}
           beats={introBeats}
+          foundSignalIds={galaxySearchProgress.foundSignalIds}
+          galaxyIntroState={galaxySearchProgress.introState}
+          galaxySignals={storyConfig.galaxy.signals}
+          galaxyStage={galaxySearchProgress.stage}
+          onRevealGalaxySignal={handleRevealGalaxySignal}
           orientationEnabled={orientationEnabled}
           phase={phase}
           singularityProgress={singularityProgress}
@@ -87,7 +139,9 @@ export default function App() {
         />
       </div>
 
-      <SingularityOverlay phase={phase} revealed={overlayVisible} />
+      {phase !== 'galaxy' && (
+        <SingularityOverlay phase={phase} revealed={overlayVisible} />
+      )}
 
       {phase === 'terminal' && (
         <TerminalGate
@@ -111,7 +165,19 @@ export default function App() {
         />
       )}
 
-      {phase === 'galaxy' && <GalaxyManifest />}
+      {phase === 'galaxy' && galaxySearchProgress.stage === 'search' && (
+        <GalaxySearchPanel
+          artifacts={storyConfig.galaxy.artifacts}
+          onCloseReveal={handleCloseGalaxyReveal}
+          onStartSearch={beginGalaxySearch}
+          progress={galaxySearchProgress}
+          revealTargetScreenPosition={revealedSignalScreenPosition}
+        />
+      )}
+
+      {phase === 'galaxy' && galaxySearchProgress.stage === 'manifest' && (
+        <GalaxyManifest artifacts={manifestArtifacts} />
+      )}
     </main>
   );
 }

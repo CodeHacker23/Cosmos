@@ -1,6 +1,7 @@
 import type {
   ArtifactDefinition,
   CalibrationTarget,
+  GalaxySignalDefinition,
   SliderState,
 } from '../features/experience/model/types';
 
@@ -68,6 +69,46 @@ export const storyConfig = {
   galaxy: {
     message:
       'Расстояние обнулилось. Финальная галактика еще растет, но ее ядро уже дышит.',
+    search: {
+      eyebrow: 'SEARCH CONSTELLATION',
+      title: 'Найди звезды, которые я оставил для тебя',
+      description:
+        'Галактика стабилизировалась не до конца. Внутри нее спрятаны три сигнала, которые откроют твои первые артефакты.',
+      progressLabel: 'Найдено сигналов',
+      continueLabel: 'Продолжить поиск',
+      completionTitle: 'Созвездие собрано',
+      completionText:
+        'Ты нашла все мои сигналы. Теперь мир можно открыть полностью.',
+    },
+    signals: [
+      {
+        id: 'truth-signal',
+        artifactId: 'truth',
+        title: 'Signal of Truth',
+        hint: 'Теплая звезда пульсирует почти в центре спирали.',
+        behavior: 'pulse',
+        color: '#ffaf7b',
+        position: [-3.8, 1.7, -8.2],
+      },
+      {
+        id: 'whisper-signal',
+        artifactId: 'whisper',
+        title: 'Signal of Whisper',
+        hint: 'Холодный огонек дрейфует чуть ниже и уходит вбок.',
+        behavior: 'drift',
+        color: '#8ac8ff',
+        position: [2.9, -1.4, -8.8],
+      },
+      {
+        id: 'nebula-signal',
+        artifactId: 'nebula',
+        title: 'Signal of Growing Nebula',
+        hint: 'Этот сигнал маскируется и раскрывается только если задержаться рядом.',
+        behavior: 'veil',
+        color: '#d9b8ff',
+        position: [1.2, 3.1, -8.5],
+      },
+    ] satisfies GalaxySignalDefinition[],
     artifacts: [
       {
         id: 'truth',
@@ -75,6 +116,9 @@ export const storyConfig = {
         kind: 'video',
         status: 'locked',
         teaser: 'Финальное видео из Челябинска.',
+        unlockTitle: 'Сигнал правды найден',
+        unlockText:
+          'Здесь ждет первая честная точка этого мира. Ты открыла ее раньше всех остальных.',
       },
       {
         id: 'whisper',
@@ -82,6 +126,9 @@ export const storyConfig = {
         kind: 'message',
         status: 'locked',
         teaser: 'Слово, которое превратится в созвездие.',
+        unlockTitle: 'Шепот проявился',
+        unlockText:
+          'Этот сигнал звучит тише остальных. Он нужен не для шума, а для того самого близкого смысла.',
       },
       {
         id: 'nebula',
@@ -89,6 +136,9 @@ export const storyConfig = {
         kind: 'coming-soon',
         status: 'locked',
         teaser: 'Этот мир будет расширяться новыми звездами.',
+        unlockTitle: 'Туманность приняла форму',
+        unlockText:
+          'Это обещание будущего слоя мира. Ты нашла точку, из которой он будет расти дальше.',
       },
     ] satisfies ArtifactDefinition[],
   },

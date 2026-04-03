@@ -1,15 +1,21 @@
 import { storyConfig } from '../../../content/storyConfig';
+import type { ArtifactDefinition } from '../../experience/model/types';
 
-export function GalaxyManifest() {
+interface GalaxyManifestProps {
+  artifacts?: ArtifactDefinition[];
+}
+
+export function GalaxyManifest({ artifacts = storyConfig.galaxy.artifacts }: GalaxyManifestProps) {
   return (
     <section className="galaxy-manifest gate-panel">
       <div className="galaxy-manifest__frame">
         <p className="eyebrow">LIVE CONSTELLATIONS</p>
-        <h3>Следующие звезды уже размечены</h3>
+        <h3>{storyConfig.galaxy.search.completionTitle}</h3>
+        <p>{storyConfig.galaxy.search.completionText}</p>
         <p>{storyConfig.galaxy.message}</p>
 
         <div className="artifact-list">
-          {storyConfig.galaxy.artifacts.map((artifact) => (
+          {artifacts.map((artifact) => (
             <article className="artifact-card" key={artifact.id}>
               <span className="artifact-card__status">
                 {artifact.status === 'locked' ? 'Locked' : 'Online'}

@@ -104,6 +104,65 @@ void main() {
 }
 `;
 
+const mistVertexShader = `
+varying vec2 vUv;
+
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const mistFragmentShader = `
+uniform float uTime;
+uniform float uOpacity;
+
+varying vec2 vUv;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+
+  return mix(
+    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
+
+  for (int i = 0; i < 4; i++) {
+    value += noise(p) * amplitude;
+    p *= 2.0;
+    amplitude *= 0.5;
+  }
+
+  return value;
+}
+
+void main() {
+  vec2 uv = vUv;
+  vec2 driftA = uv * vec2(2.2, 1.2) + vec2(uTime * 0.012, -uTime * 0.006);
+  vec2 driftB = uv * vec2(3.6, 1.8) + vec2(-uTime * 0.009, uTime * 0.005);
+  float cloud = fbm(driftA) * 0.72 + fbm(driftB) * 0.38;
+  cloud = smoothstep(0.46, 0.82, cloud);
+
+  float vignette = smoothstep(1.12, 0.18, length(uv - 0.5));
+  float alpha = cloud * vignette * uOpacity;
+  vec3 color = mix(vec3(0.22, 0.34, 0.62), vec3(0.58, 0.44, 0.78), uv.y * 0.42 + cloud * 0.2);
+
+  gl_FragColor = vec4(color, alpha);
+}
+`;
+
 const STAR_COUNT = 12000;
 const DUST_COUNT = 18000;
 
@@ -137,6 +196,7 @@ export function DeepSpaceBackdrop({
   phase,
   singularityProgress,
 }: DeepSpaceBackdropProps) {
+  const backdropGroupRef = useRef<THREE.Group | null>(null);
   const starPointsRef =
     useRef<THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | null>(null);
   const dustPointsRef =
@@ -145,6 +205,7 @@ export function DeepSpaceBackdrop({
   const coolNebulaRef = useRef<THREE.Mesh | null>(null);
   const milkyWayRef = useRef<THREE.Mesh | null>(null);
   const accentNebulaRef = useRef<THREE.Mesh | null>(null);
+  const galaxyMistRef = useRef<THREE.Mesh | null>(null);
 
   const stars = useMemo(() => {
     const positions = new Float32Array(STAR_COUNT * 3);
@@ -208,13 +269,28 @@ export function DeepSpaceBackdrop({
 
   const starUniforms = useMemo(() => ({ uTime: { value: 0 }, uReveal: { value: 0 } }), []);
   const dustUniforms = useMemo(() => ({ uTime: { value: 0 }, uReveal: { value: 0 } }), []);
+  const mistUniforms = useMemo(() => ({ uTime: { value: 0 }, uOpacity: { value: 0 } }), []);
 
-  useFrame(({ clock }, delta) => {
-    const time = clock.elapsedTime;
+  useFrame((state, delta) => {
+    const time = state.clock.elapsedTime;
     const blastWindow =
       phase === 'singularity'
         ? THREE.MathUtils.smootherstep(singularityProgress, 0.4, 0.72)
         : 0;
+    const galaxyParallax = phase === 'galaxy' ? 1 : 0;
+
+    if (backdropGroupRef.current) {
+      backdropGroupRef.current.position.x = THREE.MathUtils.lerp(
+        backdropGroupRef.current.position.x,
+        state.pointer.x * 1.35 * galaxyParallax,
+        0.025,
+      );
+      backdropGroupRef.current.position.y = THREE.MathUtils.lerp(
+        backdropGroupRef.current.position.y,
+        state.pointer.y * 0.72 * galaxyParallax,
+        0.025,
+      );
+    }
 
     if (starPointsRef.current) {
       starPointsRef.current.material.uniforms.uTime.value += delta;
@@ -267,10 +343,35 @@ export function DeepSpaceBackdrop({
       accentNebulaRef.current.material.opacity =
         beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75);
     }
+
+    if (galaxyMistRef.current) {
+      galaxyMistRef.current.position.x = Math.sin(time * 0.08) * 2.6;
+      galaxyMistRef.current.position.y = Math.cos(time * 0.06) * 1.2;
+      const material = galaxyMistRef.current.material;
+      if (material instanceof THREE.ShaderMaterial) {
+        material.uniforms.uTime.value += delta;
+        material.uniforms.uOpacity.value = THREE.MathUtils.lerp(
+          material.uniforms.uOpacity.value,
+          phase === 'galaxy' ? 0.065 : 0,
+          0.03,
+        );
+      }
+    }
   });
 
   return (
-    <group>
+    <group ref={backdropGroupRef}>
+      <mesh position={[0, 0, -86]} ref={galaxyMistRef} rotation={[-0.08, 0.02, -0.12]} scale={[82, 46, 1]}>
+        <planeGeometry args={[1, 1, 1, 1]} />
+        <shaderMaterial
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          fragmentShader={mistFragmentShader}
+          transparent
+          uniforms={mistUniforms}
+          vertexShader={mistVertexShader}
+        />
+      </mesh>
       <mesh position={[-36, 22, -52]} ref={warmNebulaRef} scale={[2.6, 1.6, 1]}>
         <sphereGeometry args={[12, 32, 32]} />
         <meshBasicMaterial
