@@ -77,30 +77,31 @@ export function Starfield({
     }
 
     material.uniforms.uTime.value += delta;
+    const sliderLerp = phase === 'calibration' ? 0.026 : 0.05;
     material.uniforms.uMatch.value = THREE.MathUtils.lerp(
       material.uniforms.uMatch.value,
       assessment.match,
-      0.05,
+      0.04,
     );
     material.uniforms.uEntropy.value = THREE.MathUtils.lerp(
       material.uniforms.uEntropy.value,
       assessment.entropy,
-      0.035,
+      0.028,
     );
     material.uniforms.uGravity.value = THREE.MathUtils.lerp(
       material.uniforms.uGravity.value,
       sliders.gravity / 100,
-      0.05,
+      sliderLerp,
     );
     material.uniforms.uResonance.value = THREE.MathUtils.lerp(
       material.uniforms.uResonance.value,
       sliders.resonance / 100,
-      0.05,
+      sliderLerp,
     );
     material.uniforms.uSync.value = THREE.MathUtils.lerp(
       material.uniforms.uSync.value,
       sliders.sync / 100,
-      0.05,
+      sliderLerp,
     );
     material.uniforms.uReveal.value = THREE.MathUtils.lerp(
       material.uniforms.uReveal.value,
@@ -131,28 +132,35 @@ export function Starfield({
         phase === 'singularity'
           ? 0.001 + collapse * 0.0025 + detonation * 0.006
           : phase === 'galaxy'
-            ? 0.0012
-            : 0.00035 + gravityInfluence * 0.00135;
+            ? 0.00018
+            : 0.00028 + gravityInfluence * 0.00082;
       pointsRef.current.rotation.y += targetRotationY;
       pointsRef.current.rotation.x = THREE.MathUtils.lerp(
         pointsRef.current.rotation.x,
         phase === 'singularity'
           ? 0.05 + collapse * 0.08
           : phase === 'galaxy'
-            ? 0.18
+            ? 0.07
             : 0.04,
         phase === 'singularity' ? 0.045 : 0.03,
       );
       pointsRef.current.rotation.z = THREE.MathUtils.lerp(
         pointsRef.current.rotation.z,
-        phase === 'galaxy' ? 0.05 : 0,
+        phase === 'galaxy' ? 0.012 : 0,
         phase === 'singularity' ? 0.025 : 0.03,
+      );
+      pointsRef.current.position.z = THREE.MathUtils.lerp(
+        pointsRef.current.position.z,
+        phase === 'galaxy' ? -14 : 0,
+        phase === 'singularity' ? 0.03 : 0.025,
       );
       pointsRef.current.scale.setScalar(
         THREE.MathUtils.lerp(
           pointsRef.current.scale.x,
           phase === 'calibration'
-            ? 1 + Math.sin(material.uniforms.uTime.value * (0.55 + syncInfluence * 0.7)) * syncInfluence * 0.045
+            ? 1 + Math.sin(material.uniforms.uTime.value * (0.48 + syncInfluence * 0.42)) * syncInfluence * 0.026
+            : phase === 'galaxy'
+              ? 0.9
             : 1,
           phase === 'singularity' ? 0.04 : 0.035,
         ),

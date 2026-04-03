@@ -28,19 +28,19 @@ vec3 rotateY(vec3 point, float angle) {
 void main() {
   vec3 displaced = position;
 
-  float drift = sin(uTime * (0.16 + uGravity * 0.12) + aRandomness.x * 6.2831) * (0.22 + uGravity * 0.08);
-  float ripple = cos(uTime * (0.16 + uResonance * 0.34) + aRandomness.y * 10.0) * (0.1 + uResonance * 0.3);
-  float resonanceWave = sin(length(position.xz) * 0.085 - uTime * (0.26 + uResonance * 0.5) + aRandomness.z * 5.0);
-  float syncPulse = sin(uTime * (0.42 + uSync * 0.9) + length(position) * 0.1 + aRandomness.x * 4.0);
-  float syncDepth = cos(uTime * (0.34 + uSync * 0.7) + length(position.xy) * 0.06 + aRandomness.y * 3.5);
+  float drift = sin(uTime * (0.16 + uGravity * 0.08) + aRandomness.x * 6.2831) * (0.2 + uGravity * 0.045);
+  float ripple = cos(uTime * (0.16 + uResonance * 0.24) + aRandomness.y * 10.0) * (0.08 + uResonance * 0.18);
+  float resonanceWave = sin(length(position.xz) * 0.085 - uTime * (0.22 + uResonance * 0.34) + aRandomness.z * 5.0);
+  float syncPulse = sin(uTime * (0.38 + uSync * 0.56) + length(position) * 0.1 + aRandomness.x * 4.0);
+  float syncDepth = cos(uTime * (0.32 + uSync * 0.42) + length(position.xy) * 0.06 + aRandomness.y * 3.5);
 
   displaced.x += drift * (1.0 + uEntropy * 0.03);
   displaced.y += ripple * (1.0 + uEntropy * 0.02);
-  displaced.y += resonanceWave * uResonance * (1.25 + uEntropy * 0.01);
-  displaced += normalize(position + aRandomness * 0.2) * syncPulse * uSync * 0.8;
-  displaced.z += syncDepth * uSync * 1.1;
+  displaced.y += resonanceWave * uResonance * (0.72 + uEntropy * 0.008);
+  displaced += normalize(position + aRandomness * 0.2) * syncPulse * uSync * 0.42;
+  displaced.z += syncDepth * uSync * 0.58;
 
-  float spiral = uTime * (0.01 + uGravity * 0.1) + length(position.xy) * 0.006;
+  float spiral = uTime * (0.01 + uGravity * 0.072) + length(position.xy) * 0.006;
   displaced = rotateY(displaced, spiral);
 
   float centerPull = smoothstep(0.18, 0.95, uWarp);
@@ -63,9 +63,9 @@ void main() {
   vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
-  float size = (0.72 + aScale * 1.5 + uMatch * 0.72 + uResonance * 0.26 + uSync * 0.22) * (238.0 / max(1.0, -mvPosition.z));
+  float size = (0.72 + aScale * 1.5 + uMatch * 0.72 + uResonance * 0.16 + uSync * 0.12) * (238.0 / max(1.0, -mvPosition.z));
   gl_PointSize = size * mix(0.3, 1.0, uReveal);
-  vAlpha = clamp((0.4 + aScale * 0.72 + uMatch * 0.36 + uResonance * 0.08 + uSync * 0.08) * uReveal, 0.0, 1.0);
+  vAlpha = clamp((0.4 + aScale * 0.72 + uMatch * 0.36 + uResonance * 0.05 + uSync * 0.04) * uReveal, 0.0, 1.0);
   vWarp = uWarp;
 }
 `;

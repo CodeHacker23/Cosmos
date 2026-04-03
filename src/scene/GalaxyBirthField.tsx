@@ -166,21 +166,21 @@ export function GalaxyBirthField({
       groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, 0, delta * 2.5);
       groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, 0, delta * 2.5);
       groupRef.current.position.z = THREE.MathUtils.lerp(-6.1, -8.2, birth);
-      groupRef.current.rotation.z = THREE.MathUtils.lerp(
-        groupRef.current.rotation.z,
-        0.045,
-        delta * 1.2,
-      );
       groupRef.current.rotation.y = THREE.MathUtils.lerp(
         groupRef.current.rotation.y,
-        0.015,
+        0.01,
         delta * 1.1,
       );
       groupRef.current.rotation.x = THREE.MathUtils.lerp(
         groupRef.current.rotation.x,
-        0.72,
+        0.7,
         delta * 1.2,
       );
+      groupRef.current.rotation.z +=
+        delta *
+        (phase === 'galaxy'
+          ? 0.18
+          : THREE.MathUtils.lerp(0.02, 0.12, birth));
       groupRef.current.scale.setScalar(0.34 + birth * 0.72 + flash * 0.04);
     }
   });
