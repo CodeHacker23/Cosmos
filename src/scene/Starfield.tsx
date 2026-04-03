@@ -15,15 +15,17 @@ import {
 interface StarfieldProps {
   beats: IntroBeats;
   phase: ExperiencePhase;
+  singularityProgress: number;
   sliders: SliderState;
   assessment: CalibrationAssessment;
 }
 
-const PARTICLE_COUNT = 52000;
+const PARTICLE_COUNT = 42000;
 
 export function Starfield({
   beats,
   phase,
+  singularityProgress,
   sliders,
   assessment,
 }: StarfieldProps) {
@@ -106,8 +108,17 @@ export function Starfield({
       0.01,
     );
 
+    const collapse = THREE.MathUtils.smootherstep(singularityProgress, 0.08, 0.45);
+    const detonation = THREE.MathUtils.smootherstep(singularityProgress, 0.45, 0.72);
+    const aftermath = THREE.MathUtils.smootherstep(singularityProgress, 0.72, 1);
+    const gravityInfluence = material.uniforms.uGravity.value;
+    const syncInfluence = material.uniforms.uSync.value;
     const targetWarp =
-      phase === 'singularity' ? 1 : phase === 'galaxy' ? 0.08 : assessment.match * 0.05;
+      phase === 'singularity'
+        ? 0.22 + collapse * 0.45 + detonation * 0.95 - aftermath * 0.42
+        : phase === 'galaxy'
+          ? 0.04
+          : assessment.match * 0.04;
 
     material.uniforms.uWarp.value = THREE.MathUtils.lerp(
       material.uniforms.uWarp.value,
@@ -117,12 +128,34 @@ export function Starfield({
 
     if (pointsRef.current) {
       const targetRotationY =
-        phase === 'singularity' ? 0.007 : phase === 'galaxy' ? 0.0012 : 0.00045;
+        phase === 'singularity'
+          ? 0.001 + collapse * 0.0025 + detonation * 0.006
+          : phase === 'galaxy'
+            ? 0.0012
+            : 0.00035 + gravityInfluence * 0.00135;
       pointsRef.current.rotation.y += targetRotationY;
       pointsRef.current.rotation.x = THREE.MathUtils.lerp(
         pointsRef.current.rotation.x,
-        phase === 'galaxy' ? 0.18 : 0.05,
-        0.02,
+        phase === 'singularity'
+          ? 0.05 + collapse * 0.08
+          : phase === 'galaxy'
+            ? 0.18
+            : 0.04,
+        phase === 'singularity' ? 0.045 : 0.03,
+      );
+      pointsRef.current.rotation.z = THREE.MathUtils.lerp(
+        pointsRef.current.rotation.z,
+        phase === 'galaxy' ? 0.05 : 0,
+        phase === 'singularity' ? 0.025 : 0.03,
+      );
+      pointsRef.current.scale.setScalar(
+        THREE.MathUtils.lerp(
+          pointsRef.current.scale.x,
+          phase === 'calibration'
+            ? 1 + Math.sin(material.uniforms.uTime.value * (0.55 + syncInfluence * 0.7)) * syncInfluence * 0.045
+            : 1,
+          phase === 'singularity' ? 0.04 : 0.035,
+        ),
       );
     }
   });

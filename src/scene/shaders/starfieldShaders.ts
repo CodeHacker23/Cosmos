@@ -28,33 +28,44 @@ vec3 rotateY(vec3 point, float angle) {
 void main() {
   vec3 displaced = position;
 
-  float drift = sin(uTime * 0.18 + aRandomness.x * 6.2831) * 0.28;
-  float ripple = cos(uTime * (0.12 + uResonance * 0.1) + aRandomness.y * 10.0) * 0.18;
-  float pulse = sin(uTime * (0.35 + uSync * 0.45) + length(position) * 0.12) * 0.09;
+  float drift = sin(uTime * (0.16 + uGravity * 0.12) + aRandomness.x * 6.2831) * (0.22 + uGravity * 0.08);
+  float ripple = cos(uTime * (0.16 + uResonance * 0.34) + aRandomness.y * 10.0) * (0.1 + uResonance * 0.3);
+  float resonanceWave = sin(length(position.xz) * 0.085 - uTime * (0.26 + uResonance * 0.5) + aRandomness.z * 5.0);
+  float syncPulse = sin(uTime * (0.42 + uSync * 0.9) + length(position) * 0.1 + aRandomness.x * 4.0);
+  float syncDepth = cos(uTime * (0.34 + uSync * 0.7) + length(position.xy) * 0.06 + aRandomness.y * 3.5);
 
   displaced.x += drift * (1.0 + uEntropy * 0.03);
   displaced.y += ripple * (1.0 + uEntropy * 0.02);
-  displaced += normalize(aRandomness) * pulse * (0.6 + uMatch);
+  displaced.y += resonanceWave * uResonance * (1.25 + uEntropy * 0.01);
+  displaced += normalize(position + aRandomness * 0.2) * syncPulse * uSync * 0.8;
+  displaced.z += syncDepth * uSync * 1.1;
 
-  float spiral = uTime * (0.01 + uGravity * 0.08) + length(position.xy) * 0.006;
+  float spiral = uTime * (0.01 + uGravity * 0.1) + length(position.xy) * 0.006;
   displaced = rotateY(displaced, spiral);
 
-  float warpFactor = 1.0 + uWarp * 16.0;
-  displaced.z *= warpFactor;
-  displaced.xy *= mix(1.0, 0.24, uWarp);
+  float centerPull = smoothstep(0.18, 0.95, uWarp);
+  float radialDistance = length(displaced.xy);
+  vec2 radialDir = radialDistance > 0.0001 ? normalize(displaced.xy) : vec2(0.0);
+  displaced.xy -= radialDir * radialDistance * centerPull * 0.82;
+  displaced.xy *= mix(1.0, 0.08, centerPull);
 
-  vec3 warmColor = vec3(1.0, 0.38, 0.15);
-  vec3 coolColor = vec3(0.12, 0.54, 1.0);
+  float warpFactor = 1.0 + uWarp * 18.0;
+  displaced.z *= warpFactor;
+
+  vec3 warmColor = vec3(1.0, 0.5, 0.22);
+  vec3 coolColor = vec3(0.18, 0.62, 1.0);
+  vec3 stellarWhite = vec3(0.98, 0.98, 1.0);
   float hemisphereMix = smoothstep(-20.0, 20.0, displaced.y);
-  float resonanceShift = clamp(uResonance * 0.75 + uMatch * 0.35, 0.0, 1.0);
-  vColor = mix(warmColor, coolColor, mix(hemisphereMix, resonanceShift, 0.45));
+  float resonanceShift = clamp(uResonance * 0.82 + uMatch * 0.35, 0.0, 1.0);
+  vec3 spectralMix = mix(warmColor, coolColor, mix(hemisphereMix, resonanceShift, 0.48));
+  vColor = mix(spectralMix, stellarWhite, clamp(0.12 + uSync * 0.18 + aScale * 0.14, 0.0, 0.32));
 
   vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
-  float size = (0.62 + aScale * 1.3 + uMatch * 0.65) * (230.0 / max(1.0, -mvPosition.z));
+  float size = (0.72 + aScale * 1.5 + uMatch * 0.72 + uResonance * 0.26 + uSync * 0.22) * (238.0 / max(1.0, -mvPosition.z));
   gl_PointSize = size * mix(0.3, 1.0, uReveal);
-  vAlpha = clamp((0.35 + aScale * 0.65 + uMatch * 0.35) * uReveal, 0.0, 1.0);
+  vAlpha = clamp((0.4 + aScale * 0.72 + uMatch * 0.36 + uResonance * 0.08 + uSync * 0.08) * uReveal, 0.0, 1.0);
   vWarp = uWarp;
 }
 `;
@@ -72,15 +83,16 @@ void main() {
     discard;
   }
 
-  float core = smoothstep(0.1, 0.0, dist);
-  float halo = smoothstep(0.46, 0.03, dist);
-  float verticalSpike = 1.0 - smoothstep(0.008, 0.12, abs(centered.x));
-  float horizontalSpike = 1.0 - smoothstep(0.008, 0.12, abs(centered.y));
-  float spikes = (verticalSpike + horizontalSpike) * smoothstep(0.6, 1.2, vAlpha) * 0.16;
-  float glow = mix(core * 1.6 + halo * 0.24 + spikes, halo + spikes * 0.5, vWarp * 0.85);
+  float core = smoothstep(0.095, 0.0, dist);
+  float halo = smoothstep(0.48, 0.02, dist);
+  float outerHalo = smoothstep(0.5, 0.16, dist);
+  float verticalSpike = 1.0 - smoothstep(0.006, 0.115, abs(centered.x));
+  float horizontalSpike = 1.0 - smoothstep(0.006, 0.115, abs(centered.y));
+  float spikes = (verticalSpike + horizontalSpike) * smoothstep(0.58, 1.22, vAlpha) * 0.22;
+  float glow = mix(core * 1.75 + halo * 0.32 + outerHalo * 0.12 + spikes, halo + outerHalo * 0.4 + spikes * 0.55, vWarp * 0.85);
   glow = pow(glow, mix(1.1, 2.2, 1.0 - vWarp));
 
-  vec3 finalColor = vColor * (1.0 + core * 1.25 + halo * 0.12 + spikes * 0.9);
+  vec3 finalColor = vColor * (1.02 + core * 1.5 + halo * 0.2 + spikes * 1.1 + outerHalo * 0.18);
   gl_FragColor = vec4(finalColor, clamp(glow * vAlpha, 0.0, 1.0));
 }
 `;

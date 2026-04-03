@@ -16,6 +16,7 @@ export default function App() {
     unlockFailures,
     orientationEnabled,
     introBeats,
+    singularityProgress,
     unlock,
     updateSlider,
     enableOrientation,
@@ -81,6 +82,7 @@ export default function App() {
           beats={introBeats}
           orientationEnabled={orientationEnabled}
           phase={phase}
+          singularityProgress={singularityProgress}
           sliders={sliders}
         />
       </div>

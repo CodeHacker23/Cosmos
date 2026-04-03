@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { IntroBeats } from '../features/experience/model/types';
+import type { ExperiencePhase, IntroBeats } from '../features/experience/model/types';
 
 const backgroundVertexShader = `
 uniform float uTime;
@@ -104,8 +104,8 @@ void main() {
 }
 `;
 
-const STAR_COUNT = 14000;
-const DUST_COUNT = 26000;
+const STAR_COUNT = 12000;
+const DUST_COUNT = 18000;
 
 const warmWhite = new THREE.Color('#ffe9d3');
 const coldWhite = new THREE.Color('#dbe8ff');
@@ -113,6 +113,7 @@ const blueWhite = new THREE.Color('#b9d5ff');
 const lilacDust = new THREE.Color('#8797d8');
 const blueDust = new THREE.Color('#86a9ff');
 const paleDust = new THREE.Color('#d7e1ff');
+const magentaDust = new THREE.Color('#d59cff');
 
 function randomSpherePoint(radius: number) {
   const theta = Math.random() * Math.PI * 2;
@@ -127,15 +128,23 @@ function randomSpherePoint(radius: number) {
 
 interface DeepSpaceBackdropProps {
   beats: IntroBeats;
+  phase: ExperiencePhase;
+  singularityProgress: number;
 }
 
-export function DeepSpaceBackdrop({ beats }: DeepSpaceBackdropProps) {
+export function DeepSpaceBackdrop({
+  beats,
+  phase,
+  singularityProgress,
+}: DeepSpaceBackdropProps) {
   const starPointsRef =
     useRef<THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | null>(null);
   const dustPointsRef =
     useRef<THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | null>(null);
   const warmNebulaRef = useRef<THREE.Mesh | null>(null);
   const coolNebulaRef = useRef<THREE.Mesh | null>(null);
+  const milkyWayRef = useRef<THREE.Mesh | null>(null);
+  const accentNebulaRef = useRef<THREE.Mesh | null>(null);
 
   const stars = useMemo(() => {
     const positions = new Float32Array(STAR_COUNT * 3);
@@ -155,8 +164,8 @@ export function DeepSpaceBackdrop({ beats }: DeepSpaceBackdropProps) {
       positions[i3 + 1] = point.y * 0.9;
       positions[i3 + 2] = point.z;
 
-      sizes[i] = 0.55 + Math.pow(Math.random(), 3) * 3.4;
-      intensities[i] = 0.32 + Math.random() * 0.68;
+      sizes[i] = 0.62 + Math.pow(Math.random(), 3) * 4.2;
+      intensities[i] = 0.38 + Math.random() * 0.72;
 
       tints[i3] = tint.r;
       tints[i3 + 1] = tint.g;
@@ -179,14 +188,15 @@ export function DeepSpaceBackdrop({ beats }: DeepSpaceBackdropProps) {
       const depth = (Math.random() - 0.5) * 55;
       const bandCurve = Math.sin(spread * 0.035) * 9;
       const tintRoll = Math.random();
-      const tint = tintRoll > 0.66 ? paleDust : tintRoll > 0.33 ? blueDust : lilacDust;
+      const tint =
+        tintRoll > 0.74 ? paleDust : tintRoll > 0.48 ? blueDust : tintRoll > 0.24 ? lilacDust : magentaDust;
 
       positions[i3] = spread;
       positions[i3 + 1] = thickness + bandCurve;
       positions[i3 + 2] = depth - 70 - Math.random() * 28;
 
-      sizes[i] = 0.7 + Math.random() * 2.2;
-      intensities[i] = 0.22 + Math.random() * 0.5;
+      sizes[i] = 0.9 + Math.random() * 2.6;
+      intensities[i] = 0.26 + Math.random() * 0.56;
 
       tints[i3] = tint.r;
       tints[i3 + 1] = tint.g;
@@ -199,7 +209,13 @@ export function DeepSpaceBackdrop({ beats }: DeepSpaceBackdropProps) {
   const starUniforms = useMemo(() => ({ uTime: { value: 0 }, uReveal: { value: 0 } }), []);
   const dustUniforms = useMemo(() => ({ uTime: { value: 0 }, uReveal: { value: 0 } }), []);
 
-  useFrame((_, delta) => {
+  useFrame(({ clock }, delta) => {
+    const time = clock.elapsedTime;
+    const blastWindow =
+      phase === 'singularity'
+        ? THREE.MathUtils.smootherstep(singularityProgress, 0.4, 0.72)
+        : 0;
+
     if (starPointsRef.current) {
       starPointsRef.current.material.uniforms.uTime.value += delta;
       starPointsRef.current.material.uniforms.uReveal.value = THREE.MathUtils.lerp(
@@ -211,6 +227,7 @@ export function DeepSpaceBackdrop({ beats }: DeepSpaceBackdropProps) {
       starPointsRef.current.rotation.x = Math.sin(
         starPointsRef.current.material.uniforms.uTime.value * 0.02,
       ) * 0.04;
+      starPointsRef.current.visible = true;
     }
 
     if (dustPointsRef.current) {
@@ -223,18 +240,32 @@ export function DeepSpaceBackdrop({ beats }: DeepSpaceBackdropProps) {
       dustPointsRef.current.rotation.z = -0.42;
       dustPointsRef.current.rotation.y += 0.00009;
       dustPointsRef.current.position.z = -14;
+      dustPointsRef.current.visible = blastWindow < 0.55;
     }
 
     if (warmNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
-      const pulse = 0.85 + Math.sin(performance.now() * 0.00035) * 0.15;
+      const pulse = 0.85 + Math.sin(time * 0.35) * 0.15;
       warmNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.1 * pulse;
+        beats.nebulaRevealBeat.progress * 0.12 * pulse * (1 - blastWindow * 0.45);
     }
 
     if (coolNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
-      const pulse = 0.86 + Math.sin(performance.now() * 0.00032 + 0.8) * 0.14;
+      const pulse = 0.86 + Math.sin(time * 0.32 + 0.8) * 0.14;
       coolNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.095 * pulse;
+        beats.nebulaRevealBeat.progress * 0.11 * pulse * (1 - blastWindow * 0.45);
+    }
+
+    if (milkyWayRef.current?.material instanceof THREE.MeshBasicMaterial) {
+      const pulse = 0.92 + Math.sin(time * 0.18 + 0.6) * 0.08;
+      milkyWayRef.current.material.opacity =
+        beats.nebulaRevealBeat.progress * 0.16 * pulse * (1 - blastWindow * 0.3);
+      milkyWayRef.current.rotation.z = -0.36;
+    }
+
+    if (accentNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
+      const pulse = 0.88 + Math.sin(time * 0.28 + 1.8) * 0.12;
+      accentNebulaRef.current.material.opacity =
+        beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75);
     }
   });
 
@@ -254,6 +285,24 @@ export function DeepSpaceBackdrop({ beats }: DeepSpaceBackdropProps) {
         <meshBasicMaterial
           blending={THREE.AdditiveBlending}
           color="#5ea6ff"
+          depthWrite={false}
+          transparent
+        />
+      </mesh>
+      <mesh position={[0, 2, -82]} ref={milkyWayRef} rotation={[0.22, -0.12, -0.36]} scale={[6.2, 1.05, 1]}>
+        <sphereGeometry args={[11, 40, 40]} />
+        <meshBasicMaterial
+          blending={THREE.AdditiveBlending}
+          color="#d6dfff"
+          depthWrite={false}
+          transparent
+        />
+      </mesh>
+      <mesh position={[-8, -6, -60]} ref={accentNebulaRef} scale={[3.4, 1.25, 1]}>
+        <sphereGeometry args={[10, 30, 30]} />
+        <meshBasicMaterial
+          blending={THREE.AdditiveBlending}
+          color="#b78cff"
           depthWrite={false}
           transparent
         />

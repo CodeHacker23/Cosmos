@@ -50,6 +50,7 @@ export function useExperienceController() {
   const [unlockFailures, setUnlockFailures] = useState(0);
   const [orientationEnabled, setOrientationEnabled] = useState(false);
   const [introProgress, setIntroProgress] = useState(0);
+  const [singularityProgress, setSingularityProgress] = useState(0);
   const transitionStartedRef = useRef(false);
   const transitionTimeoutRef = useRef<number | null>(null);
 
@@ -86,6 +87,34 @@ export function useExperienceController() {
     return () => window.cancelAnimationFrame(frameId);
   }, []);
 
+  useEffect(() => {
+    if (phase === 'galaxy') {
+      setSingularityProgress(1);
+      return;
+    }
+
+    if (phase !== 'singularity') {
+      setSingularityProgress(0);
+      return;
+    }
+
+    let frameId = 0;
+    const duration = 6800;
+    const start = window.performance.now();
+
+    const tick = (timestamp: number) => {
+      const nextProgress = Math.min(1, (timestamp - start) / duration);
+      setSingularityProgress(nextProgress);
+
+      if (nextProgress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [phase]);
+
   const beginSingularity = useCallback(() => {
     if (transitionStartedRef.current) {
       return;
@@ -97,7 +126,7 @@ export function useExperienceController() {
 
     transitionTimeoutRef.current = window.setTimeout(() => {
       setPhase('galaxy');
-    }, 5600);
+    }, 6800);
   }, []);
 
   const unlock = useCallback((rawValue: string): UnlockResult => {
@@ -190,6 +219,7 @@ export function useExperienceController() {
     introProgress,
     introBeats,
     introReady: introBeats.lockReadyBeat.progress >= 0.98,
+    singularityProgress,
     unlock,
     updateSlider,
     enableOrientation,
