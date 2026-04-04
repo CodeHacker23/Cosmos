@@ -107,18 +107,18 @@ export function GalaxySearchSignals({
       group.position.z = THREE.MathUtils.lerp(group.position.z, targetZ, delta * 3.2);
 
       const featuredPulse = isFeatured ? 1 + Math.sin(time * 3.1 + index) * 0.14 : 1;
-      const coreScaleBase = signal.behavior === 'veil' ? 1.38 : 1;
+      const coreScaleBase = signal.behavior === 'veil' ? 1.24 : 0.92;
       const coreScale =
         (isFound ? 1.18 : coreScaleBase) * pulse * featuredPulse * (isHovered ? 1.12 : 1);
       core.scale.setScalar(coreScale);
       halo.scale.setScalar(
-        (isFound ? 2.2 : signal.behavior === 'veil' ? 1.22 : 1.7) *
+        (isFound ? 2.2 : signal.behavior === 'veil' ? 1.12 : 1.46) *
           pulse *
           (isFeatured ? 1.42 : 1) *
           (isHovered ? 1.2 : 1),
       );
       ring.scale.setScalar(
-        (isFound ? 2.7 : signal.behavior === 'veil' ? 1.65 : 2.15) *
+        (isFound ? 2.7 : signal.behavior === 'veil' ? 1.52 : 1.88) *
           (isFeatured ? 1.26 : 1) *
           (1 + Math.sin(time * 0.9 + index) * 0.05),
       );
@@ -142,7 +142,11 @@ export function GalaxySearchSignals({
               ? isFeatured
                 ? 1
                 : 0.96
-              : 0.82;
+              : signal.behavior === 'pulse'
+                ? 0.68
+                : signal.behavior === 'drift'
+                  ? 0.62
+                  : 0.74;
       }
 
       if (haloMaterial instanceof THREE.MeshBasicMaterial) {
@@ -156,7 +160,9 @@ export function GalaxySearchSignals({
               ? 0.2
               : isFound
                 ? 0.16
-                : 0.12;
+                : signal.behavior === 'drift'
+                  ? 0.055
+                  : 0.075;
       }
 
       if (ringMaterial instanceof THREE.MeshBasicMaterial) {
@@ -168,7 +174,9 @@ export function GalaxySearchSignals({
               ? 0.34
               : (isHovered && isInteractive) || isFound
               ? 0.22
-              : 0.03;
+              : signal.behavior === 'drift'
+                ? 0.012
+                : 0.018;
       }
     });
   });
@@ -215,12 +223,12 @@ export function GalaxySearchSignals({
                 }
               }}
             >
-              <sphereGeometry args={[signal.behavior === 'veil' ? 0.24 : 0.19, 18, 18]} />
+              <sphereGeometry args={[signal.behavior === 'veil' ? 0.22 : 0.165, 18, 18]} />
               <meshBasicMaterial
                 blending={THREE.AdditiveBlending}
                 color={color}
                 depthWrite={false}
-                opacity={isFound ? 0.96 : 0.82}
+                opacity={isFound ? 0.96 : signal.behavior === 'drift' ? 0.62 : 0.68}
                 transparent
               />
             </mesh>
@@ -229,12 +237,12 @@ export function GalaxySearchSignals({
                 haloRefs.current[signal.id] = node;
               }}
             >
-              <sphereGeometry args={[signal.behavior === 'veil' ? 0.26 : 0.34, 18, 18]} />
+              <sphereGeometry args={[signal.behavior === 'veil' ? 0.24 : 0.3, 18, 18]} />
               <meshBasicMaterial
                 blending={THREE.AdditiveBlending}
                 color={color}
                 depthWrite={false}
-                opacity={signal.behavior === 'veil' ? 0.02 : 0.12}
+                opacity={signal.behavior === 'veil' ? 0.018 : signal.behavior === 'drift' ? 0.05 : 0.07}
                 transparent
               />
             </mesh>
@@ -244,12 +252,12 @@ export function GalaxySearchSignals({
               }}
               rotation={[Math.PI / 2, 0, 0]}
             >
-              <torusGeometry args={[signal.behavior === 'veil' ? 0.38 : 0.46, 0.02, 10, 42]} />
+              <torusGeometry args={[signal.behavior === 'veil' ? 0.34 : 0.41, 0.018, 10, 42]} />
               <meshBasicMaterial
                 blending={THREE.AdditiveBlending}
                 color={color}
                 depthWrite={false}
-                opacity={signal.behavior === 'veil' ? 0.01 : 0.03}
+                opacity={signal.behavior === 'veil' ? 0.008 : 0.015}
                 transparent
               />
             </mesh>

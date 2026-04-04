@@ -4,7 +4,7 @@ export type ExperiencePhase =
   | 'singularity'
   | 'galaxy';
 
-export type GalaxyStage = 'search' | 'manifest';
+export type GalaxyStage = 'search' | 'weave' | 'starbirth' | 'artifact' | 'manifest';
 export type GalaxySearchIntroState = 'preface' | 'dissolving' | 'active';
 
 export type SliderKey = 'gravity' | 'resonance' | 'sync';
@@ -59,6 +59,10 @@ export interface GalaxySearchProgress {
   revealedArtifactId: string | null;
   introState: GalaxySearchIntroState;
   activeSignalIds: string[];
+  linkedSignalIds: string[];
+  weaveOrder: string[];
+  starbirthProgress: number;
+  specialStarOpened: boolean;
   progress: number;
   allFound: boolean;
 }

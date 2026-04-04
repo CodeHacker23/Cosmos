@@ -1,10 +1,12 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { ExperiencePhase } from '../features/experience/model/types';
+import type { ExperiencePhase, GalaxyStage } from '../features/experience/model/types';
 
 interface GalaxyBirthFieldProps {
   phase: ExperiencePhase;
+  galaxyStage: GalaxyStage;
+  starbirthProgress: number;
   singularityProgress: number;
 }
 
@@ -14,6 +16,7 @@ const galaxyVertexShader = `
 uniform float uTime;
 uniform float uBirth;
 uniform float uFlash;
+uniform float uRitualPulse;
 
 attribute vec3 aOrigin;
 attribute float aScale;
@@ -21,6 +24,8 @@ attribute vec3 aTint;
 
 varying vec3 vTint;
 varying float vAlpha;
+varying float vRadius;
+varying float vPulse;
 
 mat2 rotate2d(float angle) {
   float s = sin(angle);
@@ -32,6 +37,11 @@ void main() {
   vec3 target = position;
   vec3 origin = aOrigin;
   float birth = smoothstep(0.0, 1.0, uBirth);
+  float radiusNorm = clamp(length(target.xy) / 12.4, 0.0, 1.0);
+  float pulsePrimary = smoothstep(0.08, 0.0, abs(radiusNorm - uRitualPulse));
+  float pulseTrail = smoothstep(0.11, 0.0, abs(radiusNorm - max(0.0, uRitualPulse - 0.08)));
+  float ritualBand = max(pulsePrimary, pulseTrail * 0.42);
+  float centerTaper = mix(0.68, 1.0, smoothstep(0.0, 0.42, radiusNorm));
 
   vec3 displaced = mix(origin, target, birth);
   float swirl = (1.0 - birth) * (1.8 + length(target.xy) * 0.06);
@@ -41,17 +51,24 @@ void main() {
   vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
-  float size = (0.9 + aScale * 1.35 + uFlash * 0.45) * (160.0 / max(1.0, -mvPosition.z));
+  float size =
+    (0.98 + aScale * 1.46 + uFlash * 0.42 + ritualBand * 0.14) *
+    centerTaper *
+    (160.0 / max(1.0, -mvPosition.z));
   gl_PointSize = size * mix(0.2, 1.0, birth);
 
   vTint = aTint;
-  vAlpha = clamp((0.14 + aScale * 0.48 + birth * 0.34 + uFlash * 0.06), 0.0, 1.0);
+  vAlpha = clamp((0.14 + aScale * 0.48 + birth * 0.34 + uFlash * 0.06 + ritualBand * 0.08), 0.0, 1.0);
+  vRadius = radiusNorm;
+  vPulse = ritualBand;
 }
 `;
 
 const galaxyFragmentShader = `
 varying vec3 vTint;
 varying float vAlpha;
+varying float vRadius;
+varying float vPulse;
 
 void main() {
   vec2 centered = gl_PointCoord - 0.5;
@@ -61,10 +78,16 @@ void main() {
     discard;
   }
 
-  float core = smoothstep(0.08, 0.0, dist);
-  float halo = smoothstep(0.44, 0.03, dist);
-  float alpha = clamp(core * 1.52 + halo * 0.2, 0.0, 1.0) * vAlpha;
-  vec3 color = vTint * (1.08 + core * 2.05 + halo * 0.12);
+  float core = smoothstep(0.06, 0.0, dist);
+  float halo = smoothstep(0.34, 0.02, dist);
+  float alpha = clamp(core * 1.74 + halo * 0.12, 0.0, 1.0) * vAlpha;
+  vec3 color = vTint * (1.2 + core * 2.34 + halo * 0.1);
+  vec3 luxeViolet = vec3(0.9, 0.64, 1.0);
+  vec3 luxeGold = vec3(1.0, 0.8, 0.4);
+  float angleMix = 0.5 + sin(vRadius * 18.0) * 0.08;
+  vec3 luxeMix = mix(luxeViolet, luxeGold, smoothstep(0.08, 0.96, vRadius) + angleMix);
+  color = mix(color, luxeMix * (1.08 + core * 0.5 + halo * 0.12), vPulse * 0.34);
+  alpha = clamp(alpha + vPulse * 0.08, 0.0, 1.0);
 
   gl_FragColor = vec4(color, alpha);
 }
@@ -84,6 +107,8 @@ const flashBand = (value: number, start: number, peak: number, end: number) => {
 
 export function GalaxyBirthField({
   phase,
+  galaxyStage,
+  starbirthProgress,
   singularityProgress,
 }: GalaxyBirthFieldProps) {
   const groupRef = useRef<THREE.Group | null>(null);
@@ -95,9 +120,9 @@ export function GalaxyBirthField({
     const origins = new Float32Array(GALAXY_PARTICLE_COUNT * 3);
     const scales = new Float32Array(GALAXY_PARTICLE_COUNT);
     const tints = new Float32Array(GALAXY_PARTICLE_COUNT * 3);
-    const centerColor = new THREE.Color('#fff3d7');
-    const warmArmColor = new THREE.Color('#ff944d');
-    const coolArmColor = new THREE.Color('#63b8ff');
+    const centerColor = new THREE.Color('#fff1d6');
+    const warmArmColor = new THREE.Color('#ff9a44');
+    const coolArmColor = new THREE.Color('#69c2ff');
 
     for (let index = 0; index < GALAXY_PARTICLE_COUNT; index += 1) {
       const i3 = index * 3;
@@ -119,12 +144,12 @@ export function GalaxyBirthField({
       origins[i3 + 1] = Math.cos(cloudPhi) * cloudRadius;
       origins[i3 + 2] = Math.sin(cloudPhi) * Math.sin(cloudTheta) * cloudRadius * 1.4;
 
-      scales[index] = 0.4 + Math.pow(Math.random(), 0.75) * 1.8;
+      scales[index] = 0.5 + Math.pow(Math.random(), 0.72) * 2.05;
 
       const tint = warmArmColor
         .clone()
         .lerp(coolArmColor, arm === 1 ? 0.72 : arm === 2 ? 0.96 : 0.14);
-      tint.lerp(centerColor, Math.max(0, 1 - radius / 12) * 0.32);
+      tint.lerp(centerColor, Math.max(0, 1 - radius / 12) * 0.28);
       tints[i3] = tint.r;
       tints[i3 + 1] = tint.g;
       tints[i3 + 2] = tint.b;
@@ -138,6 +163,7 @@ export function GalaxyBirthField({
       uTime: { value: 0 },
       uBirth: { value: 0 },
       uFlash: { value: 0 },
+      uRitualPulse: { value: 0 },
     }),
     [],
   );
@@ -148,6 +174,10 @@ export function GalaxyBirthField({
         ? 1
         : THREE.MathUtils.smootherstep(singularityProgress, 0.76, 1);
     const flash = phase === 'singularity' ? flashBand(singularityProgress, 0.56, 0.64, 0.78) : 0;
+    const ritualPulse =
+      phase === 'galaxy' && galaxyStage === 'starbirth'
+        ? flashBand(starbirthProgress, 0.48, 0.54, 0.62)
+        : 0;
 
     if (pointsRef.current) {
       pointsRef.current.material.uniforms.uTime.value += delta;
@@ -160,6 +190,11 @@ export function GalaxyBirthField({
         pointsRef.current.material.uniforms.uFlash.value,
         flash,
         0.08,
+      );
+      pointsRef.current.material.uniforms.uRitualPulse.value = THREE.MathUtils.lerp(
+        pointsRef.current.material.uniforms.uRitualPulse.value,
+        ritualPulse,
+        0.18,
       );
     }
 
@@ -183,7 +218,7 @@ export function GalaxyBirthField({
         (phase === 'galaxy'
           ? 0.18
           : THREE.MathUtils.lerp(0.02, 0.12, birth));
-      groupRef.current.scale.setScalar(0.34 + birth * 0.72 + flash * 0.04);
+      groupRef.current.scale.setScalar(0.355 + birth * 0.735 + flash * 0.04 + ritualPulse * 0.025);
     }
   });
 

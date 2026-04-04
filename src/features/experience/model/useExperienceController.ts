@@ -58,13 +58,17 @@ export function useExperienceController() {
   const [galaxyIntroState, setGalaxyIntroState] =
     useState<GalaxySearchIntroState>('preface');
   const [foundSignalIds, setFoundSignalIds] = useState<string[]>([]);
+  const [linkedSignalIds, setLinkedSignalIds] = useState<string[]>([]);
   const [revealedArtifactId, setRevealedArtifactId] = useState<string | null>(null);
   const [featuredSignalId, setFeaturedSignalId] = useState<string | null>(null);
   const [delayedSignalReady, setDelayedSignalReady] = useState(false);
+  const [starbirthProgress, setStarbirthProgress] = useState(0);
+  const [specialStarOpened, setSpecialStarOpened] = useState(false);
   const transitionStartedRef = useRef(false);
   const transitionTimeoutRef = useRef<number | null>(null);
   const galaxyIntroTimeoutRef = useRef<number | null>(null);
   const delayedSignalTimeoutRef = useRef<number | null>(null);
+  const starbirthTimeoutRef = useRef<number | null>(null);
 
   const calibration = useMemo(
     () => assessCalibration(sliders, storyConfig.calibration.target),
@@ -72,6 +76,10 @@ export function useExperienceController() {
   );
   const introBeats = useMemo(() => getIntroBeats(introProgress), [introProgress]);
   const totalGalaxySignals = storyConfig.galaxy.signals.length;
+  const weaveOrder = useMemo(
+    () => storyConfig.galaxy.signals.map((signal) => signal.id),
+    [],
+  );
   const delayedSignalId =
     storyConfig.galaxy.signals.find((signal) => signal.behavior === 'veil')?.id ?? null;
   const activeSignalIds = useMemo(
@@ -88,6 +96,10 @@ export function useExperienceController() {
       revealedArtifactId,
       introState: galaxyIntroState,
       activeSignalIds,
+      linkedSignalIds,
+      weaveOrder,
+      starbirthProgress,
+      specialStarOpened,
       progress: totalGalaxySignals === 0 ? 0 : foundSignalIds.length / totalGalaxySignals,
       allFound: foundSignalIds.length >= totalGalaxySignals,
     }),
@@ -96,8 +108,12 @@ export function useExperienceController() {
       foundSignalIds,
       galaxyIntroState,
       galaxyStage,
+      linkedSignalIds,
       revealedArtifactId,
+      specialStarOpened,
+      starbirthProgress,
       totalGalaxySignals,
+      weaveOrder,
     ],
   );
 
@@ -113,6 +129,10 @@ export function useExperienceController() {
 
       if (delayedSignalTimeoutRef.current !== null) {
         window.clearTimeout(delayedSignalTimeoutRef.current);
+      }
+
+      if (starbirthTimeoutRef.current !== null) {
+        window.clearTimeout(starbirthTimeoutRef.current);
       }
     },
     [],
@@ -169,9 +189,12 @@ export function useExperienceController() {
       setGalaxyStage('search');
       setGalaxyIntroState('preface');
       setFoundSignalIds([]);
+      setLinkedSignalIds([]);
       setRevealedArtifactId(null);
       setFeaturedSignalId(null);
       setDelayedSignalReady(false);
+      setStarbirthProgress(0);
+      setSpecialStarOpened(false);
 
       if (galaxyIntroTimeoutRef.current !== null) {
         window.clearTimeout(galaxyIntroTimeoutRef.current);
@@ -182,6 +205,11 @@ export function useExperienceController() {
         window.clearTimeout(delayedSignalTimeoutRef.current);
         delayedSignalTimeoutRef.current = null;
       }
+
+      if (starbirthTimeoutRef.current !== null) {
+        window.clearTimeout(starbirthTimeoutRef.current);
+        starbirthTimeoutRef.current = null;
+      }
       return;
     }
 
@@ -191,7 +219,7 @@ export function useExperienceController() {
       foundSignalIds.length >= totalGalaxySignals &&
       totalGalaxySignals > 0
     ) {
-      setGalaxyStage('manifest');
+      setGalaxyStage('weave');
     }
   }, [
     foundSignalIds.length,
@@ -201,6 +229,52 @@ export function useExperienceController() {
     revealedArtifactId,
     totalGalaxySignals,
   ]);
+
+  useEffect(() => {
+    if (phase !== 'galaxy' || galaxyStage !== 'starbirth') {
+      setStarbirthProgress(0);
+      return;
+    }
+
+    let frameId = 0;
+    const duration = 9200;
+    const start = window.performance.now();
+
+    const tick = (timestamp: number) => {
+      const nextProgress = Math.min(1, (timestamp - start) / duration);
+      setStarbirthProgress(nextProgress);
+
+      if (nextProgress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [galaxyStage, phase]);
+
+  useEffect(() => {
+    if (phase !== 'galaxy' || galaxyStage !== 'starbirth') {
+      if (starbirthTimeoutRef.current !== null) {
+        window.clearTimeout(starbirthTimeoutRef.current);
+        starbirthTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    starbirthTimeoutRef.current = window.setTimeout(() => {
+      setGalaxyStage('artifact');
+      setSpecialStarOpened(false);
+      starbirthTimeoutRef.current = null;
+    }, 9200);
+
+    return () => {
+      if (starbirthTimeoutRef.current !== null) {
+        window.clearTimeout(starbirthTimeoutRef.current);
+        starbirthTimeoutRef.current = null;
+      }
+    };
+  }, [galaxyStage, phase]);
 
   useEffect(() => {
     if (
@@ -358,6 +432,50 @@ export function useExperienceController() {
     setRevealedArtifactId(null);
   }, []);
 
+  const connectGalaxySignal = useCallback((signalId: string) => {
+    if (phase !== 'galaxy' || galaxyStage !== 'weave') {
+      return false;
+    }
+
+    if (linkedSignalIds.includes(signalId)) {
+      return false;
+    }
+
+    const nextExpected = weaveOrder[linkedSignalIds.length];
+    if (signalId !== nextExpected) {
+      vibrateIfPossible([10, 18, 10]);
+      return false;
+    }
+
+    vibrateIfPossible([10, 18, 24]);
+    setLinkedSignalIds((current) => {
+      if (current.includes(signalId)) {
+        return current;
+      }
+
+      const next = [...current, signalId];
+      if (next.length >= weaveOrder.length) {
+        setGalaxyStage('starbirth');
+      }
+      return next;
+    });
+
+    return true;
+  }, [galaxyStage, linkedSignalIds.length, phase, weaveOrder]);
+
+  const openSpecialStarArtifact = useCallback(() => {
+    if (phase !== 'galaxy' || galaxyStage !== 'artifact') {
+      return;
+    }
+
+    vibrateIfPossible([20, 30, 30]);
+    setSpecialStarOpened(true);
+  }, [galaxyStage, phase]);
+
+  const closeSpecialStarArtifact = useCallback(() => {
+    setSpecialStarOpened(false);
+  }, []);
+
   const beginGalaxySearch = useCallback(() => {
     if (phase !== 'galaxy' || galaxyStage !== 'search' || galaxyIntroState !== 'preface') {
       return;
@@ -390,5 +508,8 @@ export function useExperienceController() {
     revealGalaxySignal,
     closeGalaxyReveal,
     featuredSignalId,
+    connectGalaxySignal,
+    openSpecialStarArtifact,
+    closeSpecialStarArtifact,
   };
 }

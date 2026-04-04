@@ -15,6 +15,7 @@ import type {
 import { CityAnchors } from './CityAnchors';
 import { DeepSpaceBackdrop } from './DeepSpaceBackdrop';
 import { GalaxyBirthField } from './GalaxyBirthField';
+import { GalaxyConstellationRitual } from './GalaxyConstellationRitual';
 import { GalaxySearchSignals } from './GalaxySearchSignals';
 import { IntroFocalPoint } from './IntroFocalPoint';
 import { Starfield } from './Starfield';
@@ -31,8 +32,13 @@ interface CosmicSceneProps {
   galaxySignals: GalaxySignalDefinition[];
   activeSignalIds: string[];
   foundSignalIds: string[];
+  linkedSignalIds: string[];
   featuredSignalId: string | null;
+  starbirthProgress: number;
+  specialStarOpened: boolean;
   onRevealGalaxySignal: (signalId: string, screenPosition: ScreenSpacePoint) => void;
+  onConnectGalaxySignal: (signalId: string) => boolean;
+  onOpenSpecialStar: () => void;
 }
 
 interface CameraRigProps {
@@ -469,8 +475,13 @@ export function CosmicScene({
   galaxySignals,
   activeSignalIds,
   foundSignalIds,
+  linkedSignalIds,
   featuredSignalId,
+  starbirthProgress,
+  specialStarOpened,
   onRevealGalaxySignal,
+  onConnectGalaxySignal,
+  onOpenSpecialStar,
 }: CosmicSceneProps) {
   const bloomIntensity =
     phase === 'singularity'
@@ -479,7 +490,12 @@ export function CosmicScene({
         flashBand(singularityProgress, 0.5, 0.6, 0.8) * 1.05 +
         THREE.MathUtils.smootherstep(singularityProgress, 0.7, 1) * 0.32
       : phase === 'galaxy'
-        ? 0.42
+        ? 0.36 +
+          (galaxyStage === 'starbirth'
+            ? flashBand(starbirthProgress, 0.46, 0.56, 0.7) * 0.34
+            : galaxyStage === 'artifact'
+              ? 0.08
+              : 0)
         : 0.62;
 
   return (
@@ -523,7 +539,12 @@ export function CosmicScene({
       {phase === 'singularity' && (
         <SingularityField phase={phase} singularityProgress={singularityProgress} />
       )}
-      <GalaxyBirthField phase={phase} singularityProgress={singularityProgress} />
+      <GalaxyBirthField
+        galaxyStage={galaxyStage}
+        phase={phase}
+        singularityProgress={singularityProgress}
+        starbirthProgress={starbirthProgress}
+      />
       <GalaxySearchSignals
         activeSignalIds={activeSignalIds}
         featuredSignalId={featuredSignalId}
@@ -533,6 +554,15 @@ export function CosmicScene({
         phase={phase}
         signals={galaxySignals}
         stage={galaxyStage}
+      />
+      <GalaxyConstellationRitual
+        linkedSignalIds={linkedSignalIds}
+        onConnectSignal={onConnectGalaxySignal}
+        onOpenSpecialStar={onOpenSpecialStar}
+        signals={galaxySignals}
+        specialStarOpened={specialStarOpened}
+        stage={galaxyStage}
+        starbirthProgress={starbirthProgress}
       />
       <CityAnchors beats={beats} phase={phase} singularityProgress={singularityProgress} />
       {phase !== 'galaxy' && (

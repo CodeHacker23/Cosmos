@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { storyConfig } from '../content/storyConfig';
 import { CalibrationPanel } from '../features/calibration/ui/CalibrationPanel';
 import { useExperienceController } from '../features/experience/model/useExperienceController';
+import { SpecialStarArtifactPanel } from '../features/galaxy-artifact/ui/SpecialStarArtifactPanel';
 import { GalaxySearchPanel } from '../features/galaxy-search/ui/GalaxySearchPanel';
+import { GalaxyWeavePanel } from '../features/galaxy-weave/ui/GalaxyWeavePanel';
 import { GalaxyManifest } from '../features/galaxy/ui/GalaxyManifest';
 import { TerminalGate } from '../features/terminal/ui/TerminalGate';
 import { SingularityOverlay } from '../features/transition/ui/SingularityOverlay';
@@ -42,6 +44,9 @@ export default function App() {
     beginGalaxySearch,
     revealGalaxySignal,
     closeGalaxyReveal,
+    connectGalaxySignal,
+    openSpecialStarArtifact,
+    closeSpecialStarArtifact,
   } = useExperienceController();
 
   useScheduledAudioCues([
@@ -77,7 +82,7 @@ export default function App() {
   const compactHeader =
     phase === 'calibration' ||
     phase === 'singularity' ||
-    (phase === 'galaxy' && galaxySearchProgress.stage === 'search');
+    phase === 'galaxy';
   const explosionFlash =
     phase === 'singularity'
       ? flashBand(singularityProgress, 0.512, 0.528, 0.548)
@@ -86,6 +91,12 @@ export default function App() {
     ...artifact,
     status: 'active' as const,
   }));
+  const ritualPanelStage =
+    galaxySearchProgress.stage === 'weave' ||
+    galaxySearchProgress.stage === 'starbirth' ||
+    galaxySearchProgress.stage === 'artifact'
+      ? galaxySearchProgress.stage
+      : null;
 
   const handleRevealGalaxySignal = (signalId: string, screenPosition: ScreenSpacePoint) => {
     setRevealedSignalScreenPosition(screenPosition);
@@ -133,9 +144,14 @@ export default function App() {
           galaxyIntroState={galaxySearchProgress.introState}
           galaxySignals={storyConfig.galaxy.signals}
           galaxyStage={galaxySearchProgress.stage}
+          linkedSignalIds={galaxySearchProgress.linkedSignalIds}
+          onConnectGalaxySignal={connectGalaxySignal}
+          onOpenSpecialStar={openSpecialStarArtifact}
           onRevealGalaxySignal={handleRevealGalaxySignal}
           orientationEnabled={orientationEnabled}
           phase={phase}
+          specialStarOpened={galaxySearchProgress.specialStarOpened}
+          starbirthProgress={galaxySearchProgress.starbirthProgress}
           singularityProgress={singularityProgress}
           sliders={sliders}
         />
@@ -175,6 +191,20 @@ export default function App() {
           progress={galaxySearchProgress}
           revealTargetScreenPosition={revealedSignalScreenPosition}
         />
+      )}
+
+      {phase === 'galaxy' &&
+        ritualPanelStage &&
+        !galaxySearchProgress.specialStarOpened && (
+          <GalaxyWeavePanel
+            linkedCount={galaxySearchProgress.linkedSignalIds.length}
+            stage={ritualPanelStage}
+            totalCount={galaxySearchProgress.weaveOrder.length}
+          />
+        )}
+
+      {phase === 'galaxy' && galaxySearchProgress.specialStarOpened && (
+        <SpecialStarArtifactPanel onClose={closeSpecialStarArtifact} />
       )}
 
       {phase === 'galaxy' && galaxySearchProgress.stage === 'manifest' && (
