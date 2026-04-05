@@ -149,7 +149,7 @@ export function GalaxySearchPanel({
             active={progress.introState === 'dissolving'}
             bleedPx={220}
             durationMs={5000}
-            particleCount={760}
+            particleCount={280}
             targetBias={{ x: 1.48, y: -0.12 }}
           />
           {whisperArtifact && (
@@ -239,7 +239,7 @@ export function GalaxySearchPanel({
             active={revealPhase === 'dissolving'}
             bleedPx={180}
             durationMs={1600}
-            particleCount={560}
+            particleCount={180}
             targetBias={{ x: -1.12, y: -0.42 }}
             targetScreenPosition={revealTargetScreenPosition}
           />

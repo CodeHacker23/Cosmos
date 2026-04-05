@@ -34,7 +34,7 @@ export function GalaxyWeavePanel({
         <div className="galaxy-weave-panel__frame">
           <p className="eyebrow">{storyConfig.galaxy.specialStar.eyebrow}</p>
           <h3>{storyConfig.galaxy.specialStar.title}</h3>
-          <p>{storyConfig.galaxy.specialStar.description}</p>
+          <p>Это уже не просто сигнал, а главная точка этой галактики. Нажми на нее</p>
           <div className="galaxy-weave-panel__progress">
             <span>Главная звезда</span>
             <strong>ONLINE</strong>

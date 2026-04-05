@@ -210,6 +210,9 @@ export function GalaxyConstellationRitual({
     const starbirthRamp = THREE.MathUtils.smootherstep(starbirthProgress, 0.08, 1);
     const starReveal = THREE.MathUtils.smootherstep(starbirthProgress, 0.78, 0.94);
     const spiralTravel = THREE.MathUtils.smootherstep(starbirthProgress, 0.56, 0.96);
+    const waltzContrast = stage === 'starbirth'
+      ? 1 + THREE.MathUtils.smootherstep(starbirthProgress, 0.12, 0.72) * 0.34
+      : 1;
 
     signals.forEach((signal, index) => {
       const group = groupRefs.current[signal.id];
@@ -246,21 +249,33 @@ export function GalaxyConstellationRitual({
       group.visible = stage !== 'artifact';
 
       const pulse = 1 + Math.sin(time * 2.2 + index) * 0.12;
-      const linkedBoost = isLinked ? 1.22 : 1;
+      const linkedBoost = isLinked ? 1.22 * waltzContrast : 1;
       const nextTargetBoost = isNextTarget ? 1.34 + Math.sin(time * 5.2) * 0.08 : 1;
 
       core.scale.setScalar(linkedBoost * nextTargetBoost * pulse * (1 + starbirthRamp * 0.3));
       halo.scale.setScalar(
-        (isLinked ? 2.2 : isNextTarget ? 2.45 : 1.7) * pulse * (1 + starbirthRamp * 0.46),
+        (isLinked ? 2.2 * waltzContrast : isNextTarget ? 2.45 : 1.7) *
+          pulse *
+          (1 + starbirthRamp * 0.46),
       );
 
       const coreMaterial = core.material;
       const haloMaterial = halo.material;
       if (coreMaterial instanceof THREE.MeshBasicMaterial) {
-        coreMaterial.opacity = isLinked ? 1 : isNextTarget ? 0.96 : 0.82;
+        coreMaterial.opacity = isLinked && stage === 'starbirth'
+          ? 1
+          : isLinked
+            ? 1
+            : isNextTarget
+              ? 0.96
+              : 0.82;
       }
       if (haloMaterial instanceof THREE.MeshBasicMaterial) {
-        haloMaterial.opacity = isLinked ? 0.24 + starbirthRamp * 0.16 : isNextTarget ? 0.2 : 0.1;
+        haloMaterial.opacity = isLinked
+          ? 0.3 + starbirthRamp * 0.18
+          : isNextTarget
+            ? 0.2
+            : 0.1;
       }
     });
 

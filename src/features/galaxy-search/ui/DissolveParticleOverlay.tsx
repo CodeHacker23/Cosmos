@@ -18,11 +18,16 @@ interface Particle {
   size: number;
   alpha: number;
   delay: number;
-  color: string;
+  color: [number, number, number];
   pull: number;
 }
 
-const colors = ['#ffffff', '#dbe8ff', '#9fd8ff', '#ffcfad'];
+const colors: [number, number, number][] = [
+  [255, 255, 255],
+  [219, 232, 255],
+  [159, 216, 255],
+  [255, 207, 173],
+];
 
 const easeOutCubic = (value: number) => 1 - Math.pow(1 - value, 3);
 
@@ -44,7 +49,11 @@ export function DissolveParticleOverlay({
 
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = 1;
+    const cpuBudget =
+      typeof navigator.hardwareConcurrency === 'number' ? navigator.hardwareConcurrency : 4;
+    const qualityFactor = cpuBudget <= 4 ? 0.24 : cpuBudget <= 8 ? 0.32 : 0.4;
+    const actualParticleCount = Math.max(56, Math.round(particleCount * qualityFactor));
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
     const shellX = bleedPx;
@@ -68,8 +77,8 @@ export function DissolveParticleOverlay({
 
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const particles: Particle[] = Array.from({ length: particleCount }, (_, index) => {
-      const edgeBias = index < particleCount * 0.42;
+    const particles: Particle[] = Array.from({ length: actualParticleCount }, (_, index) => {
+      const edgeBias = index < actualParticleCount * 0.42;
       const onVerticalEdge = index % 2 === 0;
 
       const x = edgeBias
@@ -110,19 +119,14 @@ export function DissolveParticleOverlay({
       const overall = Math.min(1, elapsed / durationMs);
 
       context.clearRect(0, 0, width, height);
-      context.globalCompositeOperation = 'lighter';
+      context.globalCompositeOperation = 'source-over';
 
       // Keep a visible card silhouette briefly so the breakup reads.
       const shellFade = Math.max(0, 1 - overall * 1.35);
       if (shellFade > 0) {
-        context.save();
-        context.fillStyle = `rgba(234, 242, 255, ${shellFade * 0.08})`;
-        context.strokeStyle = `rgba(255, 255, 255, ${shellFade * 0.2})`;
-        context.lineWidth = 1.2;
+        context.fillStyle = `rgba(234, 242, 255, ${shellFade * 0.04})`;
         roundRect(context, shellX, shellY, shellWidth, shellHeight, 24);
         context.fill();
-        context.stroke();
-        context.restore();
       }
 
       particles.forEach((particle) => {
@@ -144,30 +148,17 @@ export function DissolveParticleOverlay({
           particle.vy * eased -
           progress * 24 +
           (targetY - particle.y) * pullProgress;
-        const radius = particle.size * (1 + progress * 0.34);
+        const radius = particle.size * (1 + progress * 0.22);
         const alpha = particle.alpha * Math.max(0, 1 - progress * 1.04);
-        const tailX = px - (particle.vx * 0.06 + (targetX - particle.x) * 0.02) * (1 - progress);
-        const tailY = py - (particle.vy * 0.06 + (targetY - particle.y) * 0.02) * (1 - progress);
 
         if (alpha <= 0) {
           return;
         }
 
-        context.save();
-        context.strokeStyle = hexToRgba(particle.color, alpha * 0.32);
-        context.lineWidth = Math.max(0.6, radius * 0.55);
-        context.beginPath();
-        context.moveTo(tailX, tailY);
-        context.lineTo(px, py);
-        context.stroke();
-
-        context.fillStyle = hexToRgba(particle.color, alpha);
-        context.shadowColor = particle.color;
-        context.shadowBlur = 12 + radius * 7;
+        context.fillStyle = rgba(particle.color, alpha);
         context.beginPath();
         context.arc(px, py, radius, 0, Math.PI * 2);
         context.fill();
-        context.restore();
       });
 
       if (overall < 1) {
@@ -224,18 +215,6 @@ function roundRect(
   context.closePath();
 }
 
-function hexToRgba(hex: string, alpha: number) {
-  const normalized = hex.replace('#', '');
-  const value = normalized.length === 3
-    ? normalized
-        .split('')
-        .map((char) => char + char)
-        .join('')
-    : normalized;
-
-  const r = Number.parseInt(value.slice(0, 2), 16);
-  const g = Number.parseInt(value.slice(2, 4), 16);
-  const b = Number.parseInt(value.slice(4, 6), 16);
-
+function rgba([r, g, b]: [number, number, number], alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
