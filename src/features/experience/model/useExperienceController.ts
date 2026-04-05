@@ -5,6 +5,7 @@ import type {
   GalaxySearchProgress,
   GalaxySearchIntroState,
   GalaxyStage,
+  GalaxyWeaveFailureState,
   ExperiencePhase,
   IntroBeat,
   IntroBeats,
@@ -47,6 +48,16 @@ const getIntroBeats = (progress: number): IntroBeats => ({
   lockReadyBeat: createBeat(progress, 0.93, 1),
 });
 
+const idleWeaveFailureState: GalaxyWeaveFailureState = {
+  active: false,
+  failureKey: 0,
+  attemptedFromId: null,
+  failedSignalId: null,
+  expectedFromId: null,
+  expectedSignalId: null,
+  decoySignalIds: [],
+};
+
 export function useExperienceController() {
   const [phase, setPhase] = useState<ExperiencePhase>('terminal');
   const [sliders, setSliders] = useState<SliderState>(storyConfig.calibration.initial);
@@ -62,12 +73,15 @@ export function useExperienceController() {
   const [revealedArtifactId, setRevealedArtifactId] = useState<string | null>(null);
   const [featuredSignalId, setFeaturedSignalId] = useState<string | null>(null);
   const [delayedSignalReady, setDelayedSignalReady] = useState(false);
+  const [weaveFailureState, setWeaveFailureState] =
+    useState<GalaxyWeaveFailureState>(idleWeaveFailureState);
   const [starbirthProgress, setStarbirthProgress] = useState(0);
   const [specialStarOpened, setSpecialStarOpened] = useState(false);
   const transitionStartedRef = useRef(false);
   const transitionTimeoutRef = useRef<number | null>(null);
   const galaxyIntroTimeoutRef = useRef<number | null>(null);
   const delayedSignalTimeoutRef = useRef<number | null>(null);
+  const weaveFailureTimeoutRef = useRef<number | null>(null);
   const starbirthTimeoutRef = useRef<number | null>(null);
 
   const calibration = useMemo(
@@ -98,6 +112,7 @@ export function useExperienceController() {
       activeSignalIds,
       linkedSignalIds,
       weaveOrder,
+      weaveFailureState,
       starbirthProgress,
       specialStarOpened,
       progress: totalGalaxySignals === 0 ? 0 : foundSignalIds.length / totalGalaxySignals,
@@ -113,6 +128,7 @@ export function useExperienceController() {
       specialStarOpened,
       starbirthProgress,
       totalGalaxySignals,
+      weaveFailureState,
       weaveOrder,
     ],
   );
@@ -129,6 +145,10 @@ export function useExperienceController() {
 
       if (delayedSignalTimeoutRef.current !== null) {
         window.clearTimeout(delayedSignalTimeoutRef.current);
+      }
+
+      if (weaveFailureTimeoutRef.current !== null) {
+        window.clearTimeout(weaveFailureTimeoutRef.current);
       }
 
       if (starbirthTimeoutRef.current !== null) {
@@ -193,6 +213,7 @@ export function useExperienceController() {
       setRevealedArtifactId(null);
       setFeaturedSignalId(null);
       setDelayedSignalReady(false);
+      setWeaveFailureState(idleWeaveFailureState);
       setStarbirthProgress(0);
       setSpecialStarOpened(false);
 
@@ -204,6 +225,11 @@ export function useExperienceController() {
       if (delayedSignalTimeoutRef.current !== null) {
         window.clearTimeout(delayedSignalTimeoutRef.current);
         delayedSignalTimeoutRef.current = null;
+      }
+
+      if (weaveFailureTimeoutRef.current !== null) {
+        window.clearTimeout(weaveFailureTimeoutRef.current);
+        weaveFailureTimeoutRef.current = null;
       }
 
       if (starbirthTimeoutRef.current !== null) {
@@ -432,28 +458,98 @@ export function useExperienceController() {
     setRevealedArtifactId(null);
   }, []);
 
-  const connectGalaxySignal = useCallback((signalId: string) => {
-    if (phase !== 'galaxy' || galaxyStage !== 'weave') {
+  const connectGalaxySignal = useCallback((fromSignalId: string, signalId: string) => {
+    if (phase !== 'galaxy' || galaxyStage !== 'weave' || weaveFailureState.active) {
       return false;
     }
 
-    if (linkedSignalIds.includes(signalId)) {
+    if (
+      fromSignalId === signalId ||
+      !weaveOrder.includes(fromSignalId) ||
+      !weaveOrder.includes(signalId) ||
+      linkedSignalIds.includes(signalId)
+    ) {
       return false;
     }
 
-    const nextExpected = weaveOrder[linkedSignalIds.length];
-    if (signalId !== nextExpected) {
-      vibrateIfPossible([10, 18, 10]);
+    const expectedFromId =
+      linkedSignalIds.length === 0
+        ? weaveOrder[0] ?? null
+        : linkedSignalIds[linkedSignalIds.length - 1] ?? null;
+    const nextExpected =
+      linkedSignalIds.length === 0
+        ? weaveOrder[1] ?? null
+        : weaveOrder[linkedSignalIds.length] ?? null;
+    const connectionAccepted =
+      fromSignalId === expectedFromId && signalId === nextExpected;
+
+    if (!connectionAccepted) {
+      if (weaveFailureTimeoutRef.current !== null) {
+        window.clearTimeout(weaveFailureTimeoutRef.current);
+        weaveFailureTimeoutRef.current = null;
+      }
+
+      const remainingSignals = weaveOrder.filter(
+        (candidate) =>
+          !linkedSignalIds.includes(candidate) &&
+          candidate !== fromSignalId &&
+          candidate !== signalId,
+      );
+      const extraDecoyId = remainingSignals[0] ?? null;
+      const decoySignalIds = Array.from(
+        new Set(
+          [
+            fromSignalId,
+            signalId,
+            expectedFromId,
+            nextExpected,
+            extraDecoyId,
+          ].filter((value): value is string => Boolean(value)),
+        ),
+      );
+
+      setLinkedSignalIds((current) => (current.length > 1 ? current.slice(0, -1) : current));
+      setWeaveFailureState((current) => ({
+        active: true,
+        failureKey: current.failureKey + 1,
+        attemptedFromId: fromSignalId,
+        failedSignalId: signalId,
+        expectedFromId,
+        expectedSignalId: nextExpected,
+        decoySignalIds,
+      }));
+      vibrateIfPossible([12, 22, 12, 22, 18]);
+
+      weaveFailureTimeoutRef.current = window.setTimeout(() => {
+        setWeaveFailureState((current) => ({
+          ...current,
+          active: false,
+          attemptedFromId: null,
+          failedSignalId: null,
+          expectedFromId: null,
+          expectedSignalId: null,
+          decoySignalIds: [],
+        }));
+        weaveFailureTimeoutRef.current = null;
+      }, 880);
       return false;
     }
 
     vibrateIfPossible([10, 18, 24]);
+    setWeaveFailureState((current) =>
+      current.active ? idleWeaveFailureState : current,
+    );
     setLinkedSignalIds((current) => {
       if (current.includes(signalId)) {
         return current;
       }
 
-      const next = [...current, signalId];
+      const next =
+        current.length === 0
+          ? [fromSignalId, signalId]
+          : current[current.length - 1] === fromSignalId
+            ? [...current, signalId]
+            : current;
       if (next.length >= weaveOrder.length) {
         setGalaxyStage('starbirth');
       }
@@ -461,7 +557,7 @@ export function useExperienceController() {
     });
 
     return true;
-  }, [galaxyStage, linkedSignalIds.length, phase, weaveOrder]);
+  }, [galaxyStage, linkedSignalIds, phase, weaveFailureState.active, weaveOrder]);
 
   const openSpecialStarArtifact = useCallback(() => {
     if (phase !== 'galaxy' || galaxyStage !== 'artifact') {

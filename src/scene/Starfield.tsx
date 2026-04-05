@@ -66,7 +66,7 @@ export function Starfield({
       positions[i3 + 1] = radius * Math.cos(phi) * 0.85;
       positions[i3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
 
-      scales[index] = 0.3 + Math.pow(Math.random(), 0.75);
+      scales[index] = 0.22 + Math.pow(Math.random(), 0.82) * 0.82;
       randomness[i3] = Math.random() * 2 - 1;
       randomness[i3 + 1] = Math.random() * 2 - 1;
       randomness[i3 + 2] = Math.random() * 2 - 1;

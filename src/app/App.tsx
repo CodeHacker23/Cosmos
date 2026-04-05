@@ -154,6 +154,7 @@ export default function App() {
           starbirthProgress={galaxySearchProgress.starbirthProgress}
           singularityProgress={singularityProgress}
           sliders={sliders}
+          weaveFailureState={galaxySearchProgress.weaveFailureState}
         />
       </div>
 

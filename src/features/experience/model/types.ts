@@ -53,6 +53,16 @@ export interface GalaxySignalDefinition {
   position: [number, number, number];
 }
 
+export interface GalaxyWeaveFailureState {
+  active: boolean;
+  failureKey: number;
+  attemptedFromId: string | null;
+  failedSignalId: string | null;
+  expectedFromId: string | null;
+  expectedSignalId: string | null;
+  decoySignalIds: string[];
+}
+
 export interface GalaxySearchProgress {
   stage: GalaxyStage;
   foundSignalIds: string[];
@@ -61,6 +71,7 @@ export interface GalaxySearchProgress {
   activeSignalIds: string[];
   linkedSignalIds: string[];
   weaveOrder: string[];
+  weaveFailureState: GalaxyWeaveFailureState;
   starbirthProgress: number;
   specialStarOpened: boolean;
   progress: number;

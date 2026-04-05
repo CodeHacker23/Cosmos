@@ -63,7 +63,7 @@ void main() {
   vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
-  float size = (0.72 + aScale * 1.5 + uMatch * 0.72 + uResonance * 0.16 + uSync * 0.12) * (238.0 / max(1.0, -mvPosition.z));
+  float size = (0.64 + aScale * 1.28 + uMatch * 0.68 + uResonance * 0.15 + uSync * 0.1) * (224.0 / max(1.0, -mvPosition.z));
   gl_PointSize = size * mix(0.3, 1.0, uReveal);
   vAlpha = clamp((0.4 + aScale * 0.72 + uMatch * 0.36 + uResonance * 0.05 + uSync * 0.04) * uReveal, 0.0, 1.0);
   vWarp = uWarp;

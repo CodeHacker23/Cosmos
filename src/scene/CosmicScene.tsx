@@ -8,6 +8,7 @@ import type {
   GalaxySearchIntroState,
   GalaxySignalDefinition,
   GalaxyStage,
+  GalaxyWeaveFailureState,
   IntroBeats,
   ScreenSpacePoint,
   SliderState,
@@ -33,11 +34,12 @@ interface CosmicSceneProps {
   activeSignalIds: string[];
   foundSignalIds: string[];
   linkedSignalIds: string[];
+  weaveFailureState: GalaxyWeaveFailureState;
   featuredSignalId: string | null;
   starbirthProgress: number;
   specialStarOpened: boolean;
   onRevealGalaxySignal: (signalId: string, screenPosition: ScreenSpacePoint) => void;
-  onConnectGalaxySignal: (signalId: string) => boolean;
+  onConnectGalaxySignal: (fromSignalId: string, signalId: string) => boolean;
   onOpenSpecialStar: () => void;
 }
 
@@ -476,6 +478,7 @@ export function CosmicScene({
   activeSignalIds,
   foundSignalIds,
   linkedSignalIds,
+  weaveFailureState,
   featuredSignalId,
   starbirthProgress,
   specialStarOpened,
@@ -563,6 +566,7 @@ export function CosmicScene({
         specialStarOpened={specialStarOpened}
         stage={galaxyStage}
         starbirthProgress={starbirthProgress}
+        weaveFailureState={weaveFailureState}
       />
       <CityAnchors beats={beats} phase={phase} singularityProgress={singularityProgress} />
       {phase !== 'galaxy' && (
