@@ -6,6 +6,7 @@ export type ExperiencePhase =
 
 export type GalaxyStage = 'search' | 'weave' | 'starbirth' | 'artifact' | 'manifest';
 export type GalaxySearchIntroState = 'preface' | 'dissolving' | 'active';
+export type GalaxyPostVideoStage = 'idle' | 'preface' | 'jump';
 
 export type SliderKey = 'gravity' | 'resonance' | 'sync';
 
@@ -65,6 +66,9 @@ export interface GalaxyWeaveFailureState {
 
 export interface GalaxySearchProgress {
   stage: GalaxyStage;
+  postVideoStage: GalaxyPostVideoStage;
+  postVideoPhraseIndex: number;
+  jumpProgress: number;
   foundSignalIds: string[];
   revealedArtifactId: string | null;
   introState: GalaxySearchIntroState;
@@ -74,6 +78,7 @@ export interface GalaxySearchProgress {
   weaveFailureState: GalaxyWeaveFailureState;
   starbirthProgress: number;
   specialStarOpened: boolean;
+  specialStarViewed: boolean;
   progress: number;
   allFound: boolean;
 }

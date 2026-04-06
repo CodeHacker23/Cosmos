@@ -6,13 +6,15 @@ interface GalaxyManifestProps {
 }
 
 export function GalaxyManifest({ artifacts = storyConfig.galaxy.artifacts }: GalaxyManifestProps) {
+  const memoryCopy = storyConfig.galaxy.postVideo;
+
   return (
     <section className="galaxy-manifest gate-panel">
       <div className="galaxy-manifest__frame">
-        <p className="eyebrow">LIVE CONSTELLATIONS</p>
-        <h3>{storyConfig.galaxy.search.completionTitle}</h3>
-        <p>{storyConfig.galaxy.search.completionText}</p>
-        <p>{storyConfig.galaxy.message}</p>
+        <p className="eyebrow">{memoryCopy.memoryEyebrow}</p>
+        <h3>{memoryCopy.memoryTitle}</h3>
+        <p>{memoryCopy.memoryDescription}</p>
+        <p>{memoryCopy.resetDescription}</p>
 
         <div className="artifact-list">
           {artifacts.map((artifact) => (

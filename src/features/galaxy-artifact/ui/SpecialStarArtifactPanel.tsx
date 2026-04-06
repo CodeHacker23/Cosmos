@@ -3,9 +3,10 @@ import { storyConfig } from '../../../content/storyConfig';
 
 interface SpecialStarArtifactPanelProps {
   onClose: () => void;
+  onContinue: () => void;
 }
 
-export function SpecialStarArtifactPanel({ onClose }: SpecialStarArtifactPanelProps) {
+export function SpecialStarArtifactPanel({ onClose, onContinue }: SpecialStarArtifactPanelProps) {
   const copy = storyConfig.galaxy.specialStar;
 
   useEffect(() => {
@@ -48,6 +49,14 @@ export function SpecialStarArtifactPanel({ onClose }: SpecialStarArtifactPanelPr
           <span className="eyebrow">{copy.bridgeEyebrow}</span>
           <h3>{copy.bridgeTitle}</h3>
           <p>{copy.bridgeDescription}</p>
+          <div className="special-star-overlay__actions">
+            <button className="ghost-button" onClick={onContinue} type="button">
+              {copy.continueLabel}
+            </button>
+            <button className="ghost-button ghost-button--muted" onClick={onClose} type="button">
+              {copy.closeLabel}
+            </button>
+          </div>
         </div>
       </div>
     </section>

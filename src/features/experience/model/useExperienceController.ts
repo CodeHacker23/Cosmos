@@ -4,6 +4,7 @@ import { assessCalibration } from './calibration';
 import type {
   GalaxySearchProgress,
   GalaxySearchIntroState,
+  GalaxyPostVideoStage,
   GalaxyStage,
   GalaxyWeaveFailureState,
   ExperiencePhase,
@@ -75,13 +76,19 @@ export function useExperienceController() {
   const [delayedSignalReady, setDelayedSignalReady] = useState(false);
   const [weaveFailureState, setWeaveFailureState] =
     useState<GalaxyWeaveFailureState>(idleWeaveFailureState);
+  const [postVideoStage, setPostVideoStage] = useState<GalaxyPostVideoStage>('idle');
+  const [postVideoPhraseIndex, setPostVideoPhraseIndex] = useState(0);
+  const [jumpProgress, setJumpProgress] = useState(0);
   const [starbirthProgress, setStarbirthProgress] = useState(0);
   const [specialStarOpened, setSpecialStarOpened] = useState(false);
+  const [specialStarViewed, setSpecialStarViewed] = useState(false);
   const transitionStartedRef = useRef(false);
   const transitionTimeoutRef = useRef<number | null>(null);
   const galaxyIntroTimeoutRef = useRef<number | null>(null);
   const delayedSignalTimeoutRef = useRef<number | null>(null);
   const weaveFailureTimeoutRef = useRef<number | null>(null);
+  const postVideoPhraseTimeoutRef = useRef<number | null>(null);
+  const postVideoJumpTimeoutRef = useRef<number | null>(null);
   const starbirthTimeoutRef = useRef<number | null>(null);
 
   const calibration = useMemo(
@@ -106,6 +113,9 @@ export function useExperienceController() {
   const galaxySearchProgress = useMemo<GalaxySearchProgress>(
     () => ({
       stage: galaxyStage,
+      postVideoStage,
+      postVideoPhraseIndex,
+      jumpProgress,
       foundSignalIds,
       revealedArtifactId,
       introState: galaxyIntroState,
@@ -115,6 +125,7 @@ export function useExperienceController() {
       weaveFailureState,
       starbirthProgress,
       specialStarOpened,
+      specialStarViewed,
       progress: totalGalaxySignals === 0 ? 0 : foundSignalIds.length / totalGalaxySignals,
       allFound: foundSignalIds.length >= totalGalaxySignals,
     }),
@@ -123,9 +134,13 @@ export function useExperienceController() {
       foundSignalIds,
       galaxyIntroState,
       galaxyStage,
+      jumpProgress,
       linkedSignalIds,
+      postVideoPhraseIndex,
+      postVideoStage,
       revealedArtifactId,
       specialStarOpened,
+      specialStarViewed,
       starbirthProgress,
       totalGalaxySignals,
       weaveFailureState,
@@ -149,6 +164,14 @@ export function useExperienceController() {
 
       if (weaveFailureTimeoutRef.current !== null) {
         window.clearTimeout(weaveFailureTimeoutRef.current);
+      }
+
+      if (postVideoPhraseTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoPhraseTimeoutRef.current);
+      }
+
+      if (postVideoJumpTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoJumpTimeoutRef.current);
       }
 
       if (starbirthTimeoutRef.current !== null) {
@@ -214,8 +237,12 @@ export function useExperienceController() {
       setFeaturedSignalId(null);
       setDelayedSignalReady(false);
       setWeaveFailureState(idleWeaveFailureState);
+      setPostVideoStage('idle');
+      setPostVideoPhraseIndex(0);
+      setJumpProgress(0);
       setStarbirthProgress(0);
       setSpecialStarOpened(false);
+      setSpecialStarViewed(false);
 
       if (galaxyIntroTimeoutRef.current !== null) {
         window.clearTimeout(galaxyIntroTimeoutRef.current);
@@ -230,6 +257,16 @@ export function useExperienceController() {
       if (weaveFailureTimeoutRef.current !== null) {
         window.clearTimeout(weaveFailureTimeoutRef.current);
         weaveFailureTimeoutRef.current = null;
+      }
+
+      if (postVideoPhraseTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoPhraseTimeoutRef.current);
+        postVideoPhraseTimeoutRef.current = null;
+      }
+
+      if (postVideoJumpTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoJumpTimeoutRef.current);
+        postVideoJumpTimeoutRef.current = null;
       }
 
       if (starbirthTimeoutRef.current !== null) {
@@ -278,6 +315,84 @@ export function useExperienceController() {
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
   }, [galaxyStage, phase]);
+
+  useEffect(() => {
+    const prefaceLines = storyConfig.galaxy.postVideo.prefaceLines;
+    if (
+      phase !== 'galaxy' ||
+      !specialStarOpened ||
+      postVideoStage !== 'preface' ||
+      postVideoPhraseIndex >= prefaceLines.length - 1
+    ) {
+      if (postVideoPhraseTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoPhraseTimeoutRef.current);
+        postVideoPhraseTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    postVideoPhraseTimeoutRef.current = window.setTimeout(() => {
+      setPostVideoPhraseIndex((current) => Math.min(current + 1, prefaceLines.length - 1));
+      postVideoPhraseTimeoutRef.current = null;
+    }, 3600);
+
+    return () => {
+      if (postVideoPhraseTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoPhraseTimeoutRef.current);
+        postVideoPhraseTimeoutRef.current = null;
+      }
+    };
+  }, [phase, postVideoPhraseIndex, postVideoStage, specialStarOpened]);
+
+  useEffect(() => {
+    if (phase !== 'galaxy' || !specialStarOpened || postVideoStage !== 'jump') {
+      setJumpProgress(0);
+      return;
+    }
+
+    let frameId = 0;
+    const duration = 16800;
+    const start = window.performance.now();
+
+    const tick = (timestamp: number) => {
+      const nextProgress = Math.min(1, (timestamp - start) / duration);
+      setJumpProgress(nextProgress);
+
+      if (nextProgress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [phase, postVideoStage, specialStarOpened]);
+
+  useEffect(() => {
+    if (phase !== 'galaxy' || !specialStarOpened || postVideoStage !== 'jump') {
+      if (postVideoJumpTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoJumpTimeoutRef.current);
+        postVideoJumpTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    vibrateIfPossible([24, 40, 22, 40, 26, 40, 30]);
+    postVideoJumpTimeoutRef.current = window.setTimeout(() => {
+      setSpecialStarOpened(false);
+      setPostVideoStage('idle');
+      setPostVideoPhraseIndex(0);
+      setJumpProgress(0);
+      setGalaxyStage('manifest');
+      postVideoJumpTimeoutRef.current = null;
+    }, 16800);
+
+    return () => {
+      if (postVideoJumpTimeoutRef.current !== null) {
+        window.clearTimeout(postVideoJumpTimeoutRef.current);
+        postVideoJumpTimeoutRef.current = null;
+      }
+    };
+  }, [phase, postVideoStage, specialStarOpened]);
 
   useEffect(() => {
     if (phase !== 'galaxy' || galaxyStage !== 'starbirth') {
@@ -565,12 +680,59 @@ export function useExperienceController() {
     }
 
     vibrateIfPossible([20, 30, 30]);
+    setPostVideoStage('idle');
+    setPostVideoPhraseIndex(0);
+    setJumpProgress(0);
+    setSpecialStarViewed(true);
     setSpecialStarOpened(true);
   }, [galaxyStage, phase]);
 
   const closeSpecialStarArtifact = useCallback(() => {
+    setPostVideoStage('idle');
+    setPostVideoPhraseIndex(0);
+    setJumpProgress(0);
     setSpecialStarOpened(false);
   }, []);
+
+  const returnToSpecialStarVideo = useCallback(() => {
+    if (phase !== 'galaxy' || galaxyStage !== 'artifact') {
+      return;
+    }
+
+    setPostVideoStage('idle');
+    setPostVideoPhraseIndex(0);
+    setJumpProgress(0);
+    setSpecialStarOpened(true);
+  }, [galaxyStage, phase]);
+
+  const beginPostVideoPreface = useCallback(() => {
+    if (
+      phase !== 'galaxy' ||
+      galaxyStage !== 'artifact' ||
+      postVideoStage !== 'idle'
+    ) {
+      return;
+    }
+
+    vibrateIfPossible([12, 26, 12]);
+    setSpecialStarOpened(false);
+    setPostVideoPhraseIndex(0);
+    setPostVideoStage('preface');
+  }, [galaxyStage, phase, postVideoStage]);
+
+  const beginPostVideoJump = useCallback(() => {
+    if (
+      phase !== 'galaxy' ||
+      galaxyStage !== 'artifact' ||
+      postVideoStage !== 'preface'
+    ) {
+      return;
+    }
+
+    vibrateIfPossible([18, 30, 26, 30, 34]);
+    setSpecialStarOpened(false);
+    setPostVideoStage('jump');
+  }, [galaxyStage, phase, postVideoStage]);
 
   const beginGalaxySearch = useCallback(() => {
     if (phase !== 'galaxy' || galaxyStage !== 'search' || galaxyIntroState !== 'preface') {
@@ -607,5 +769,8 @@ export function useExperienceController() {
     connectGalaxySignal,
     openSpecialStarArtifact,
     closeSpecialStarArtifact,
+    returnToSpecialStarVideo,
+    beginPostVideoPreface,
+    beginPostVideoJump,
   };
 }

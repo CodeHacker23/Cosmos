@@ -4,12 +4,16 @@ interface GalaxyWeavePanelProps {
   linkedCount: number;
   totalCount: number;
   stage: 'weave' | 'starbirth' | 'artifact';
+  specialStarViewed?: boolean;
+  onContinuePostVideo?: () => void;
 }
 
 export function GalaxyWeavePanel({
   linkedCount,
   totalCount,
   stage,
+  specialStarViewed = false,
+  onContinuePostVideo,
 }: GalaxyWeavePanelProps) {
   const copy = storyConfig.galaxy.weave;
 
@@ -29,16 +33,26 @@ export function GalaxyWeavePanel({
   }
 
   if (stage === 'artifact') {
+    const specialStarCopy = storyConfig.galaxy.specialStar;
     return (
       <section className="galaxy-weave-panel gate-panel">
         <div className="galaxy-weave-panel__frame">
-          <p className="eyebrow">{storyConfig.galaxy.specialStar.eyebrow}</p>
-          <h3>{storyConfig.galaxy.specialStar.title}</h3>
-          <p>Это уже не просто сигнал, а главная точка этой галактики. Нажми на нее</p>
+          <p className="eyebrow">{specialStarCopy.eyebrow}</p>
+          <h3>{specialStarViewed ? specialStarCopy.afterVideoTitle : specialStarCopy.title}</h3>
+          <p>
+            {specialStarViewed
+              ? specialStarCopy.afterVideoDescription
+              : 'Это уже не просто сигнал, а главная точка этой галактики. Нажми на нее...'}
+          </p>
           <div className="galaxy-weave-panel__progress">
             <span>Главная звезда</span>
             <strong>ONLINE</strong>
           </div>
+          {specialStarViewed && onContinuePostVideo && (
+            <button className="ghost-button" onClick={onContinuePostVideo} type="button">
+              {specialStarCopy.afterVideoActionLabel}
+            </button>
+          )}
         </div>
       </section>
     );

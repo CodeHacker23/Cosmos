@@ -6,6 +6,7 @@ import { SpecialStarArtifactPanel } from '../features/galaxy-artifact/ui/Special
 import { GalaxySearchPanel } from '../features/galaxy-search/ui/GalaxySearchPanel';
 import { GalaxyWeavePanel } from '../features/galaxy-weave/ui/GalaxyWeavePanel';
 import { GalaxyManifest } from '../features/galaxy/ui/GalaxyManifest';
+import { PostVideoActPanel } from '../features/post-video/ui/PostVideoActPanel';
 import { TerminalGate } from '../features/terminal/ui/TerminalGate';
 import { SingularityOverlay } from '../features/transition/ui/SingularityOverlay';
 import { CosmicScene } from '../scene/CosmicScene';
@@ -47,6 +48,9 @@ export default function App() {
     connectGalaxySignal,
     openSpecialStarArtifact,
     closeSpecialStarArtifact,
+    returnToSpecialStarVideo,
+    beginPostVideoPreface,
+    beginPostVideoJump,
   } = useExperienceController();
 
   useScheduledAudioCues([
@@ -87,9 +91,9 @@ export default function App() {
     phase === 'singularity'
       ? flashBand(singularityProgress, 0.512, 0.528, 0.548)
       : 0;
-  const manifestArtifacts = storyConfig.galaxy.artifacts.map((artifact) => ({
+  const manifestArtifacts = storyConfig.galaxy.postVideo.stars.map((artifact) => ({
     ...artifact,
-    status: 'active' as const,
+    status: artifact.status,
   }));
   const ritualPanelStage =
     galaxySearchProgress.stage === 'weave' ||
@@ -199,14 +203,31 @@ export default function App() {
         !galaxySearchProgress.specialStarOpened && (
           <GalaxyWeavePanel
             linkedCount={galaxySearchProgress.linkedSignalIds.length}
+            onContinuePostVideo={beginPostVideoPreface}
+            specialStarViewed={galaxySearchProgress.specialStarViewed}
             stage={ritualPanelStage}
             totalCount={galaxySearchProgress.weaveOrder.length}
           />
         )}
 
-      {phase === 'galaxy' && galaxySearchProgress.specialStarOpened && (
-        <SpecialStarArtifactPanel onClose={closeSpecialStarArtifact} />
-      )}
+      {phase === 'galaxy' &&
+        galaxySearchProgress.specialStarOpened &&
+        galaxySearchProgress.postVideoStage === 'idle' && (
+          <SpecialStarArtifactPanel
+            onClose={closeSpecialStarArtifact}
+            onContinue={beginPostVideoPreface}
+          />
+        )}
+
+      {phase === 'galaxy' && galaxySearchProgress.postVideoStage !== 'idle' && (
+          <PostVideoActPanel
+            jumpProgress={galaxySearchProgress.jumpProgress}
+            onClose={returnToSpecialStarVideo}
+            onStartJump={beginPostVideoJump}
+            phraseIndex={galaxySearchProgress.postVideoPhraseIndex}
+            stage={galaxySearchProgress.postVideoStage}
+          />
+        )}
 
       {phase === 'galaxy' && galaxySearchProgress.stage === 'manifest' && (
         <GalaxyManifest artifacts={manifestArtifacts} />
