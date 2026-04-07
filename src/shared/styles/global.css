@@ -1438,6 +1438,14 @@ input {
   backdrop-filter: blur(14px);
 }
 
+.post-video-act__veil--jump {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 244, 221, 0.16), transparent 18%),
+    radial-gradient(circle at 50% 40%, rgba(128, 106, 255, 0.22), transparent 34%),
+    linear-gradient(180deg, rgba(7, 8, 18, 0.12), rgba(2, 4, 14, 0.56));
+  backdrop-filter: blur(4px);
+}
+
 .post-video-act--preface {
   display: grid;
   place-items: center;
@@ -1546,6 +1554,17 @@ input {
   place-items: center;
 }
 
+.post-video-act__jump-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: start center;
+  width: 100%;
+  min-height: 100%;
+  padding: max(24px, env(safe-area-inset-top)) 18px 8vh;
+  align-content: start;
+}
+
 .post-video-act__warp {
   position: absolute;
   inset: -8%;
@@ -1597,6 +1616,33 @@ input {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
     rgba(8, 10, 22, 0.42);
+}
+
+.post-video-act__quote--jump.gate-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
+    linear-gradient(180deg, rgba(8, 10, 22, 0.2), rgba(8, 10, 22, 0.48));
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.memory-star-card.gate-panel {
+  width: min(440px, calc(100vw - 32px));
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+    linear-gradient(180deg, rgba(8, 10, 24, 0.82), rgba(6, 8, 18, 0.94));
+  box-shadow:
+    0 22px 64px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.memory-star-card h3,
+.memory-star-card p {
+  margin: 0;
 }
 
 .post-video-act__quote p {

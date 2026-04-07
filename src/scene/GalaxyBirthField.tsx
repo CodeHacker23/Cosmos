@@ -1,11 +1,13 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { ExperiencePhase, GalaxyStage } from '../features/experience/model/types';
+import type { ExperiencePhase, GalaxyPostVideoStage, GalaxyStage } from '../features/experience/model/types';
 
 interface GalaxyBirthFieldProps {
   phase: ExperiencePhase;
   galaxyStage: GalaxyStage;
+  postVideoStage: GalaxyPostVideoStage;
+  jumpProgress: number;
   starbirthProgress: number;
   singularityProgress: number;
 }
@@ -108,6 +110,8 @@ const flashBand = (value: number, start: number, peak: number, end: number) => {
 export function GalaxyBirthField({
   phase,
   galaxyStage,
+  postVideoStage,
+  jumpProgress,
   starbirthProgress,
   singularityProgress,
 }: GalaxyBirthFieldProps) {
@@ -169,15 +173,31 @@ export function GalaxyBirthField({
   );
 
   useFrame((_, delta) => {
+    const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
+    const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
+    const jumpDive = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.02, 0.36) : 0;
+    const jumpIgnition = isPostVideoJump ? flashBand(jumpProgress, 0.3, 0.44, 0.58) : 0;
+    const jumpTraverse = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.5, 0.88) : 0;
     const birth =
       phase === 'galaxy'
         ? 1
         : THREE.MathUtils.smootherstep(singularityProgress, 0.76, 1);
-    const flash = phase === 'singularity' ? flashBand(singularityProgress, 0.56, 0.64, 0.78) : 0;
+    const flash =
+      phase === 'singularity'
+        ? flashBand(singularityProgress, 0.56, 0.64, 0.78)
+        : isPostVideoJump
+          ? jumpIgnition * 0.8 + jumpTraverse * 0.16
+          : isPostVideoPreface
+            ? 0.08
+            : 0;
     const ritualPulse =
       phase === 'galaxy' && galaxyStage === 'starbirth'
         ? flashBand(starbirthProgress, 0.48, 0.54, 0.62)
-        : 0;
+        : isPostVideoJump
+          ? 0.14 + jumpDive * 0.22 + jumpIgnition * 0.34
+          : isPostVideoPreface
+            ? 0.08
+            : 0;
 
     if (pointsRef.current) {
       pointsRef.current.material.uniforms.uTime.value += delta;
@@ -200,25 +220,49 @@ export function GalaxyBirthField({
 
     if (groupRef.current) {
       groupRef.current.visible = phase === 'galaxy' || birth > 0.06;
-      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, -0.1, delta * 2.5);
-      groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, -0.12, delta * 2.5);
-      groupRef.current.position.z = THREE.MathUtils.lerp(-6.1, -8.2, birth);
+      groupRef.current.position.x = THREE.MathUtils.lerp(
+        groupRef.current.position.x,
+        isPostVideoJump ? -0.02 : isPostVideoPreface ? -0.05 : -0.1,
+        delta * 2.5,
+      );
+      groupRef.current.position.y = THREE.MathUtils.lerp(
+        groupRef.current.position.y,
+        isPostVideoJump ? -0.02 : isPostVideoPreface ? -0.06 : -0.12,
+        delta * 2.5,
+      );
+      groupRef.current.position.z = THREE.MathUtils.lerp(
+        groupRef.current.position.z,
+        THREE.MathUtils.lerp(-6.1, -8.2, birth) + jumpDive * 1.4 + jumpIgnition * 0.9 - jumpTraverse * 1.2,
+        delta * 2.2,
+      );
       groupRef.current.rotation.y = THREE.MathUtils.lerp(
         groupRef.current.rotation.y,
-        0.01,
+        isPostVideoJump ? 0.06 + jumpDive * 0.08 : isPostVideoPreface ? 0.03 : 0.01,
         delta * 1.1,
       );
       groupRef.current.rotation.x = THREE.MathUtils.lerp(
         groupRef.current.rotation.x,
-        0.7,
+        isPostVideoJump ? 0.84 - jumpTraverse * 0.16 : isPostVideoPreface ? 0.76 : 0.7,
         delta * 1.2,
       );
       groupRef.current.rotation.z +=
         delta *
         (phase === 'galaxy'
-          ? 0.18
+          ? isPostVideoJump
+            ? 0.3 + jumpDive * 0.38 + jumpIgnition * 0.72 - jumpTraverse * 0.08
+            : isPostVideoPreface
+              ? 0.22
+              : 0.18
           : THREE.MathUtils.lerp(0.02, 0.12, birth));
-      groupRef.current.scale.setScalar(0.355 + birth * 0.735 + flash * 0.04 + ritualPulse * 0.025);
+      groupRef.current.scale.setScalar(
+        0.355 +
+          birth * 0.735 +
+          flash * 0.04 +
+          ritualPulse * 0.025 +
+          jumpDive * 0.18 +
+          jumpIgnition * 0.14 -
+          jumpTraverse * 0.08,
+      );
     }
   });
 

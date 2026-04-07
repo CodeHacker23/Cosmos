@@ -10,21 +10,10 @@ import { PostVideoActPanel } from '../features/post-video/ui/PostVideoActPanel';
 import { TerminalGate } from '../features/terminal/ui/TerminalGate';
 import { SingularityOverlay } from '../features/transition/ui/SingularityOverlay';
 import { CosmicScene } from '../scene/CosmicScene';
+import { getSingularityTransitState } from '../scene/singularityTransit';
 import { useScheduledAudioCues } from '../shared/hooks/useScheduledAudioCues';
 import { DevStatus } from '../shared/ui/DevStatus';
 import type { ScreenSpacePoint } from '../features/experience/model/types';
-
-const flashBand = (value: number, start: number, peak: number, end: number) => {
-  if (value <= start || value >= end) {
-    return 0;
-  }
-
-  if (value <= peak) {
-    return (value - start) / (peak - start);
-  }
-
-  return 1 - (value - peak) / (end - peak);
-};
 
 export default function App() {
   const [revealedSignalScreenPosition, setRevealedSignalScreenPosition] =
@@ -87,9 +76,10 @@ export default function App() {
     phase === 'calibration' ||
     phase === 'singularity' ||
     phase === 'galaxy';
+  const singularityTransit = getSingularityTransitState(singularityProgress);
   const explosionFlash =
     phase === 'singularity'
-      ? flashBand(singularityProgress, 0.512, 0.528, 0.548)
+      ? Math.min(1, singularityTransit.flash * 1.15 + singularityTransit.flight * 0.08)
       : 0;
   const manifestArtifacts = storyConfig.galaxy.postVideo.stars.map((artifact) => ({
     ...artifact,
@@ -148,12 +138,14 @@ export default function App() {
           galaxyIntroState={galaxySearchProgress.introState}
           galaxySignals={storyConfig.galaxy.signals}
           galaxyStage={galaxySearchProgress.stage}
+          jumpProgress={galaxySearchProgress.jumpProgress}
           linkedSignalIds={galaxySearchProgress.linkedSignalIds}
           onConnectGalaxySignal={connectGalaxySignal}
           onOpenSpecialStar={openSpecialStarArtifact}
           onRevealGalaxySignal={handleRevealGalaxySignal}
           orientationEnabled={orientationEnabled}
           phase={phase}
+          postVideoStage={galaxySearchProgress.postVideoStage}
           specialStarOpened={galaxySearchProgress.specialStarOpened}
           starbirthProgress={galaxySearchProgress.starbirthProgress}
           singularityProgress={singularityProgress}

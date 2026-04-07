@@ -1,10 +1,18 @@
-import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing';
+import {
+  Bloom,
+  ChromaticAberration,
+  EffectComposer,
+  Noise,
+  Vignette,
+} from '@react-three/postprocessing';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { ImprovedNoise } from 'three/examples/jsm/math/ImprovedNoise.js';
 import type {
   CalibrationAssessment,
   ExperiencePhase,
+  GalaxyPostVideoStage,
   GalaxySearchIntroState,
   GalaxySignalDefinition,
   GalaxyStage,
@@ -19,7 +27,11 @@ import { GalaxyBirthField } from './GalaxyBirthField';
 import { GalaxyConstellationRitual } from './GalaxyConstellationRitual';
 import { GalaxySearchSignals } from './GalaxySearchSignals';
 import { IntroFocalPoint } from './IntroFocalPoint';
+import { PostVideoDestinyUniverse } from './PostVideoDestinyUniverse';
+import { SingularityTransitField } from './SingularityTransitField';
 import { Starfield } from './Starfield';
+import { getPostVideoTransitState } from './postVideoTransit';
+import { getSingularityTransitState } from './singularityTransit';
 
 interface CosmicSceneProps {
   phase: ExperiencePhase;
@@ -29,6 +41,7 @@ interface CosmicSceneProps {
   beats: IntroBeats;
   singularityProgress: number;
   galaxyStage: GalaxyStage;
+  postVideoStage: GalaxyPostVideoStage;
   galaxyIntroState: GalaxySearchIntroState;
   galaxySignals: GalaxySignalDefinition[];
   activeSignalIds: string[];
@@ -37,6 +50,7 @@ interface CosmicSceneProps {
   weaveFailureState: GalaxyWeaveFailureState;
   featuredSignalId: string | null;
   starbirthProgress: number;
+  jumpProgress: number;
   specialStarOpened: boolean;
   onRevealGalaxySignal: (signalId: string, screenPosition: ScreenSpacePoint) => void;
   onConnectGalaxySignal: (fromSignalId: string, signalId: string) => boolean;
@@ -48,6 +62,9 @@ interface CameraRigProps {
   assessment: CalibrationAssessment;
   orientationEnabled: boolean;
   singularityProgress: number;
+  galaxyStage: GalaxyStage;
+  postVideoStage: GalaxyPostVideoStage;
+  jumpProgress: number;
 }
 
 const flashBand = (value: number, start: number, peak: number, end: number) => {
@@ -67,10 +84,24 @@ function CameraRig({
   assessment,
   orientationEnabled,
   singularityProgress,
+  galaxyStage,
+  postVideoStage,
+  jumpProgress,
 }: CameraRigProps) {
   const camera = useThree((state) => state.camera);
+  const perspectiveCamera = camera as THREE.PerspectiveCamera;
   const motionTarget = useRef({ x: 0, y: 0 });
   const lookAtTarget = useRef(new THREE.Vector3(0, 0, 0));
+  const noise = useRef(new ImprovedNoise());
+
+  useEffect(() => {
+    if (phase === 'galaxy' && galaxyStage === 'manifest') {
+      camera.position.set(0, 1.2, 11.5);
+      camera.lookAt(0, 0, 0);
+      perspectiveCamera.fov = 48;
+      perspectiveCamera.updateProjectionMatrix();
+    }
+  }, [camera, galaxyStage, perspectiveCamera, phase]);
 
   useEffect(() => {
     if (!orientationEnabled) {
@@ -92,61 +123,120 @@ function CameraRig({
   }, [orientationEnabled]);
 
   useFrame((state, delta) => {
+    if (phase === 'galaxy' && galaxyStage === 'manifest') {
+      return;
+    }
+
+    const transit = getSingularityTransitState(singularityProgress);
+    const postVideoTransit = getPostVideoTransitState(jumpProgress);
     const pointerX = state.pointer.y * 0.12;
     const pointerY = state.pointer.x * 0.18;
-    const collapse = THREE.MathUtils.smootherstep(singularityProgress, 0.06, 0.44);
-    const flash = flashBand(singularityProgress, 0.46, 0.58, 0.72);
-    const impact = flashBand(singularityProgress, 0.512, 0.528, 0.556);
-    const aftershock = flashBand(singularityProgress, 0.556, 0.61, 0.72);
-    const aftermath = THREE.MathUtils.smootherstep(singularityProgress, 0.72, 1);
+    const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
+    const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
+    const isSingularity = phase === 'singularity';
+    const coreDive = isPostVideoJump ? postVideoTransit.coreApproach : 0;
+    const warpPull = isPostVideoJump ? postVideoTransit.tunnel : 0;
+    const flightPull = isPostVideoJump ? postVideoTransit.galaxyFlight : 0;
+    const warpAfterglow = isPostVideoJump ? postVideoTransit.destination : 0;
     const shake =
-      phase === 'singularity'
-        ? impact * 0.62 + aftershock * 0.18 + aftermath * 0.03
-        : 0;
+      isSingularity
+        ? transit.acceleration * 0.08 + transit.jump * 0.38 + transit.flash * 0.22 + transit.flight * 0.06
+        : isPostVideoJump
+          ? coreDive * 0.1 + warpPull * 0.16 + flightPull * 0.08
+          : 0;
     const time = state.clock.elapsedTime;
     const motionX = orientationEnabled ? motionTarget.current.x : pointerX;
     const motionY = orientationEnabled ? motionTarget.current.y : pointerY;
-    const targetX = phase === 'singularity' ? motionX * 0.14 : motionX;
-    const targetY = phase === 'singularity' ? motionY * 0.14 : motionY;
+    const orbitalX = isPostVideoJump ? Math.sin(time * (0.68 + coreDive * 1.2)) * (0.14 + coreDive * 0.22) : 0;
+    const orbitalY = isPostVideoJump ? Math.cos(time * (0.84 + coreDive * 1.35)) * (0.16 + coreDive * 0.18) : 0;
+    const targetX =
+      isSingularity
+        ? motionX * 0.08
+        : isPostVideoJump
+          ? motionX * 0.07 + orbitalX
+          : isPostVideoPreface
+            ? motionX * 0.42
+            : motionX;
+    const targetY =
+      isSingularity
+        ? motionY * 0.08
+        : isPostVideoJump
+          ? motionY * 0.07 + orbitalY
+          : isPostVideoPreface
+            ? motionY * 0.42
+            : motionY;
+
+    const singularityDolly =
+      transit.acceleration * 2.8 + transit.jump * 8.2 + transit.flash * 1.4 - transit.flight * 1.35;
 
     const targetZ =
       phase === 'terminal'
         ? 24
         : phase === 'calibration'
           ? 18.5
-          : phase === 'singularity'
-            ? 18.5 - collapse * 4.6 - flash * 1.3 - impact * 0.95 + aftermath * 1.2
-            : 14.5;
+          : isSingularity
+            ? 18.4 - singularityDolly
+            : isPostVideoPreface
+              ? 13.75 + Math.sin(time * 0.22) * 0.08
+              : isPostVideoJump
+                ? 14.8 - coreDive * 5.2 - warpPull * 1.4 - flightPull * 3.2 + warpAfterglow * 1.6
+                : 14.5;
+
+    const noiseTime = time * (2.4 + transit.jump * 9.5 + transit.flash * 18.0);
+    const perlinX = noise.current.noise(noiseTime, 0.13, 0.07);
+    const perlinY = noise.current.noise(0.11, noiseTime, 0.23);
 
     const shakeX =
-      phase === 'singularity'
-        ? Math.sin(time * 42) * shake * 0.26 +
-          Math.sin(time * 69 + 0.8) * shake * 0.11
+      isSingularity
+        ? perlinX * shake * 0.72
+        : isPostVideoJump
+          ? Math.sin(time * 42) * shake * 0.26 +
+            Math.sin(time * 69 + 0.8) * shake * 0.11
         : 0;
     const shakeY =
-      phase === 'singularity'
-        ? Math.cos(time * 46) * shake * 0.22 +
-          Math.sin(time * 63 + 1.7) * shake * 0.1
+      isSingularity
+        ? perlinY * shake * 0.68
+        : isPostVideoJump
+          ? Math.cos(time * 46) * shake * 0.22 +
+            Math.sin(time * 63 + 1.7) * shake * 0.1
         : 0;
 
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, delta * 1.4);
     camera.position.x = THREE.MathUtils.lerp(
       camera.position.x,
-      targetY * (phase === 'singularity' ? 0.7 : 3.2) + shakeX,
-      delta * 1.8,
+      targetY * (isSingularity ? 0.42 : isPostVideoJump ? 0.78 : isPostVideoPreface ? 1.6 : 3.2) +
+        shakeX,
+      delta * (isSingularity ? 3.2 : isPostVideoJump ? 2.4 : 1.8),
     );
     camera.position.y = THREE.MathUtils.lerp(
       camera.position.y,
-      targetX * (phase === 'singularity' ? 0.55 : 2.4) + (phase === 'galaxy' ? 0.55 : 0) + shakeY,
-      delta * 1.8,
+      targetX * (isSingularity ? 0.36 : isPostVideoJump ? 0.62 : isPostVideoPreface ? 1.3 : 2.4) +
+        (phase === 'galaxy' && !isPostVideoJump ? 0.55 : 0) -
+        coreDive * 0.16 -
+        flightPull * 0.1 +
+        shakeY,
+      delta * (isSingularity ? 3.2 : isPostVideoJump ? 2.4 : 1.8),
     );
 
     lookAtTarget.current.set(
-      targetY * (phase === 'singularity' ? 0.15 : 0.4) + shakeX * 0.12,
-      targetX * (phase === 'singularity' ? 0.12 : 0.32) + shakeY * 0.12,
-      THREE.MathUtils.lerp(0, -8, assessment.match) - collapse * 2.1 - flash * 0.55,
+      targetY * (isSingularity ? 0.08 : isPostVideoJump ? 0.18 : 0.4) + shakeX * 0.12,
+      targetX * (isSingularity ? 0.06 : isPostVideoJump ? 0.18 : 0.32) + shakeY * 0.12,
+      THREE.MathUtils.lerp(0, -8, assessment.match) -
+        (isSingularity ? transit.acceleration * 1.6 + transit.jump * 5.4 + transit.flash * 1.8 - transit.flight * 2.6 : 0) -
+        (isPostVideoPreface ? 1.8 : 0) -
+        (isPostVideoJump ? coreDive * 7.6 + warpPull * 6.8 + flightPull * 11 + warpAfterglow * 3.4 : 0),
     );
     camera.lookAt(lookAtTarget.current);
+    perspectiveCamera.fov = THREE.MathUtils.lerp(
+      perspectiveCamera.fov,
+      isPostVideoJump
+        ? 42 + coreDive * 8 + warpPull * 14 - flightPull * 2
+        : isPostVideoPreface
+          ? 44
+          : 42,
+      delta * 2.4,
+    );
+    perspectiveCamera.updateProjectionMatrix();
   });
 
   return null;
@@ -162,10 +252,17 @@ function ExposureRig({
   const gl = useThree((state) => state.gl);
 
   useFrame((_, delta) => {
-    const flash = flashBand(singularityProgress, 0.48, 0.6, 0.78);
-    const birth = THREE.MathUtils.smootherstep(singularityProgress, 0.68, 1);
+    const transit = getSingularityTransitState(singularityProgress);
     const targetExposure =
-      phase === 'singularity' ? 0.94 + flash * 0.46 + birth * 0.16 : phase === 'galaxy' ? 1.08 : 0.95;
+      phase === 'singularity'
+        ? 1 +
+          transit.acceleration * 0.18 +
+          transit.jump * 0.42 +
+          transit.flash * 1.05 +
+          transit.flight * 0.18
+        : phase === 'galaxy'
+          ? 1.08
+          : 0.95;
 
     gl.toneMappingExposure = THREE.MathUtils.lerp(gl.toneMappingExposure, targetExposure, delta * 3.4);
   });
@@ -473,6 +570,7 @@ export function CosmicScene({
   beats,
   singularityProgress,
   galaxyStage,
+  postVideoStage,
   galaxyIntroState,
   galaxySignals,
   activeSignalIds,
@@ -481,19 +579,32 @@ export function CosmicScene({
   weaveFailureState,
   featuredSignalId,
   starbirthProgress,
+  jumpProgress,
   specialStarOpened,
   onRevealGalaxySignal,
   onConnectGalaxySignal,
   onOpenSpecialStar,
 }: CosmicSceneProps) {
+  const postVideoTransit = getPostVideoTransitState(jumpProgress);
   const bloomIntensity =
     phase === 'singularity'
-      ? 0.82 +
-        flashBand(singularityProgress, 0.26, 0.4, 0.56) * 0.65 +
-        flashBand(singularityProgress, 0.5, 0.6, 0.8) * 1.05 +
-        THREE.MathUtils.smootherstep(singularityProgress, 0.7, 1) * 0.32
+      ? 1.12 +
+        getSingularityTransitState(singularityProgress).acceleration * 0.55 +
+        getSingularityTransitState(singularityProgress).jump * 1.6 +
+        getSingularityTransitState(singularityProgress).flash * 2.6 +
+        getSingularityTransitState(singularityProgress).flight * 0.5
       : phase === 'galaxy'
-        ? 0.36 +
+        ? (postVideoStage === 'jump'
+            ? 0.74 +
+              postVideoTransit.coreApproach * 0.9 +
+              postVideoTransit.tunnel * 1.5 +
+              postVideoTransit.galaxyFlight * 0.9 +
+              postVideoTransit.destination * 0.42
+            : galaxyStage === 'manifest'
+              ? 1.18
+            : postVideoStage === 'preface'
+              ? 0.48
+              : 0.36) +
           (galaxyStage === 'starbirth'
             ? flashBand(starbirthProgress, 0.46, 0.56, 0.7) * 0.34
             : galaxyStage === 'artifact'
@@ -517,18 +628,36 @@ export function CosmicScene({
       }}
     >
       <color attach="background" args={['#01020a']} />
-      <fog attach="fog" args={['#01020a', 16, phase === 'singularity' ? 74 : 90]} />
+      <fog
+        attach="fog"
+        args={[
+          '#01020a',
+          phase === 'galaxy' && (postVideoStage === 'jump' || galaxyStage === 'manifest') ? 8 : 16,
+          phase === 'singularity'
+            ? 74
+            : phase === 'galaxy' && postVideoStage === 'jump'
+              ? 44
+              : phase === 'galaxy' && galaxyStage === 'manifest'
+                ? 68
+                : 90,
+        ]}
+      />
 
       <DeepSpaceBackdrop
         beats={beats}
+        jumpProgress={jumpProgress}
         phase={phase}
+        postVideoStage={postVideoStage}
         singularityProgress={singularityProgress}
       />
       <ExposureRig phase={phase} singularityProgress={singularityProgress} />
       <CameraRig
         assessment={assessment}
+        galaxyStage={galaxyStage}
+        jumpProgress={jumpProgress}
         orientationEnabled={orientationEnabled}
         phase={phase}
+        postVideoStage={postVideoStage}
         singularityProgress={singularityProgress}
       />
 
@@ -542,9 +671,19 @@ export function CosmicScene({
       {phase === 'singularity' && (
         <SingularityField phase={phase} singularityProgress={singularityProgress} />
       )}
+      {phase === 'singularity' && <SingularityTransitField singularityProgress={singularityProgress} />}
+      {phase === 'galaxy' && (postVideoStage === 'jump' || galaxyStage === 'manifest') && (
+        <PostVideoDestinyUniverse
+          galaxyStage={galaxyStage}
+          jumpProgress={jumpProgress}
+          postVideoStage={postVideoStage}
+        />
+      )}
       <GalaxyBirthField
         galaxyStage={galaxyStage}
+        jumpProgress={jumpProgress}
         phase={phase}
+        postVideoStage={postVideoStage}
         singularityProgress={singularityProgress}
         starbirthProgress={starbirthProgress}
       />
@@ -580,7 +719,9 @@ export function CosmicScene({
       <Starfield
         assessment={assessment}
         beats={beats}
+        jumpProgress={jumpProgress}
         phase={phase}
+        postVideoStage={postVideoStage}
         singularityProgress={singularityProgress}
         sliders={sliders}
       />
@@ -589,8 +730,21 @@ export function CosmicScene({
         <Bloom
           intensity={bloomIntensity}
           luminanceSmoothing={0.08}
-          luminanceThreshold={phase === 'singularity' ? 0.5 : 0.52}
-          mipmapBlur={phase !== 'singularity'}
+          luminanceThreshold={phase === 'singularity' ? 0.12 : postVideoStage === 'jump' || galaxyStage === 'manifest' ? 0.24 : 0.52}
+          mipmapBlur={phase !== 'singularity' && postVideoStage !== 'jump' && galaxyStage !== 'manifest'}
+        />
+        <ChromaticAberration
+          offset={
+            new THREE.Vector2(
+              phase === 'singularity'
+                ? 0.0006 + getSingularityTransitState(singularityProgress).jump * 0.0032
+                : 0,
+              phase === 'singularity'
+                ? 0.0004 + getSingularityTransitState(singularityProgress).flash * 0.0042
+                : 0,
+            )
+          }
+          radialModulation
         />
         <Noise
           opacity={

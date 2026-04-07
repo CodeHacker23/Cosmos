@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { storyConfig } from '../../../content/storyConfig';
 import type { GalaxyPostVideoStage } from '../../experience/model/types';
+import { getPostVideoTransitState } from '../../../scene/postVideoTransit';
 
 interface PostVideoActPanelProps {
   stage: GalaxyPostVideoStage;
@@ -44,21 +45,21 @@ export function PostVideoActPanel({
       return null;
     }
 
+    const transit = getPostVideoTransitState(jumpProgress);
     const lines = copy.jumpLines;
-    if (jumpProgress < 0.18) {
+    if (transit.tunnel <= 0 || transit.galaxyFlight > 0) {
       return null;
     }
-    if (jumpProgress < 0.42) {
-      return lines[0];
-    }
-    if (jumpProgress < 0.68) {
-      return lines[1];
-    }
-    if (jumpProgress < 0.94) {
-      return lines[2];
-    }
-    return null;
+    return lines[transit.phraseIndex] ?? null;
   }, [copy.jumpLines, jumpProgress, stage]);
+
+  const jumpPhraseOpacity = useMemo(() => {
+    if (stage !== 'jump') {
+      return 0;
+    }
+
+    return getPostVideoTransitState(jumpProgress).phraseVisibility;
+  }, [jumpProgress, stage]);
 
   const startHold = () => {
     if (stage !== 'preface') {
@@ -104,20 +105,20 @@ export function PostVideoActPanel({
   if (stage === 'jump') {
     return (
       <section className="post-video-act post-video-act--jump" aria-live="polite">
-        <div className="post-video-act__veil" />
-        <div className="post-video-act__warp">
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
+        <div
+          className="post-video-act__veil post-video-act__veil--jump"
+          style={{ opacity: Math.max(0.12, 0.38 - jumpProgress * 0.16) }}
+        />
+        <div className="post-video-act__jump-shell">
+          {activeJumpLine && (
+            <div
+              className="post-video-act__quote post-video-act__quote--jump gate-panel"
+              style={{ opacity: jumpPhraseOpacity }}
+            >
+              <p>{activeJumpLine}</p>
+            </div>
+          )}
         </div>
-
-        {activeJumpLine && (
-          <div className="post-video-act__quote post-video-act__quote--jump gate-panel">
-            <p>{activeJumpLine}</p>
-          </div>
-        )}
       </section>
     );
   }

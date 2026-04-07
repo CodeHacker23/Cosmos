@@ -1,5 +1,8 @@
+import { gsap } from 'gsap';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { POST_VIDEO_TOTAL_DURATION } from '../../../scene/postVideoTransit';
 import { storyConfig } from '../../../content/storyConfig';
+import { SINGULARITY_TOTAL_DURATION } from '../../../scene/singularityTransit';
 import { assessCalibration } from './calibration';
 import type {
   GalaxySearchProgress,
@@ -83,13 +86,14 @@ export function useExperienceController() {
   const [specialStarOpened, setSpecialStarOpened] = useState(false);
   const [specialStarViewed, setSpecialStarViewed] = useState(false);
   const transitionStartedRef = useRef(false);
-  const transitionTimeoutRef = useRef<number | null>(null);
+  const singularityTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const galaxyIntroTimeoutRef = useRef<number | null>(null);
   const delayedSignalTimeoutRef = useRef<number | null>(null);
   const weaveFailureTimeoutRef = useRef<number | null>(null);
   const postVideoPhraseTimeoutRef = useRef<number | null>(null);
   const postVideoJumpTimeoutRef = useRef<number | null>(null);
   const starbirthTimeoutRef = useRef<number | null>(null);
+  const postVideoJumpTimelineRef = useRef<gsap.core.Timeline | null>(null);
 
   const calibration = useMemo(
     () => assessCalibration(sliders, storyConfig.calibration.target),
@@ -150,9 +154,8 @@ export function useExperienceController() {
 
   useEffect(
     () => () => {
-      if (transitionTimeoutRef.current !== null) {
-        window.clearTimeout(transitionTimeoutRef.current);
-      }
+      singularityTimelineRef.current?.kill();
+      singularityTimelineRef.current = null;
 
       if (galaxyIntroTimeoutRef.current !== null) {
         window.clearTimeout(galaxyIntroTimeoutRef.current);
@@ -173,6 +176,9 @@ export function useExperienceController() {
       if (postVideoJumpTimeoutRef.current !== null) {
         window.clearTimeout(postVideoJumpTimeoutRef.current);
       }
+
+      postVideoJumpTimelineRef.current?.kill();
+      postVideoJumpTimelineRef.current = null;
 
       if (starbirthTimeoutRef.current !== null) {
         window.clearTimeout(starbirthTimeoutRef.current);
@@ -202,29 +208,60 @@ export function useExperienceController() {
   useEffect(() => {
     if (phase === 'galaxy') {
       setSingularityProgress(1);
+      singularityTimelineRef.current?.kill();
+      singularityTimelineRef.current = null;
       return;
     }
 
     if (phase !== 'singularity') {
       setSingularityProgress(0);
+      singularityTimelineRef.current?.kill();
+      singularityTimelineRef.current = null;
       return;
     }
 
-    let frameId = 0;
-    const duration = 6800;
-    const start = window.performance.now();
+    singularityTimelineRef.current?.kill();
+    const progressState = { value: 0 };
+    const accelerationEnd = 2 / SINGULARITY_TOTAL_DURATION;
+    const jumpEnd = 3 / SINGULARITY_TOTAL_DURATION;
+    const flashEnd = 3.5 / SINGULARITY_TOTAL_DURATION;
 
-    const tick = (timestamp: number) => {
-      const nextProgress = Math.min(1, (timestamp - start) / duration);
-      setSingularityProgress(nextProgress);
+    singularityTimelineRef.current = gsap
+      .timeline({
+        onComplete: () => {
+          setSingularityProgress(1);
+          setPhase('galaxy');
+        },
+      })
+      .to(progressState, {
+        value: accelerationEnd,
+        duration: 2,
+        ease: 'power3.in',
+        onUpdate: () => setSingularityProgress(progressState.value),
+      })
+      .to(progressState, {
+        value: jumpEnd,
+        duration: 1,
+        ease: 'expo.in',
+        onUpdate: () => setSingularityProgress(progressState.value),
+      })
+      .to(progressState, {
+        value: flashEnd,
+        duration: 0.5,
+        ease: 'power4.out',
+        onUpdate: () => setSingularityProgress(progressState.value),
+      })
+      .to(progressState, {
+        value: 1,
+        duration: 4,
+        ease: 'expo.inOut',
+        onUpdate: () => setSingularityProgress(progressState.value),
+      });
 
-      if (nextProgress < 1) {
-        frameId = window.requestAnimationFrame(tick);
-      }
+    return () => {
+      singularityTimelineRef.current?.kill();
+      singularityTimelineRef.current = null;
     };
-
-    frameId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frameId);
   }, [phase]);
 
   useEffect(() => {
@@ -243,6 +280,8 @@ export function useExperienceController() {
       setStarbirthProgress(0);
       setSpecialStarOpened(false);
       setSpecialStarViewed(false);
+      postVideoJumpTimelineRef.current?.kill();
+      postVideoJumpTimelineRef.current = null;
 
       if (galaxyIntroTimeoutRef.current !== null) {
         window.clearTimeout(galaxyIntroTimeoutRef.current);
@@ -320,7 +359,6 @@ export function useExperienceController() {
     const prefaceLines = storyConfig.galaxy.postVideo.prefaceLines;
     if (
       phase !== 'galaxy' ||
-      !specialStarOpened ||
       postVideoStage !== 'preface' ||
       postVideoPhraseIndex >= prefaceLines.length - 1
     ) {
@@ -342,33 +380,35 @@ export function useExperienceController() {
         postVideoPhraseTimeoutRef.current = null;
       }
     };
-  }, [phase, postVideoPhraseIndex, postVideoStage, specialStarOpened]);
+  }, [phase, postVideoPhraseIndex, postVideoStage]);
 
   useEffect(() => {
-    if (phase !== 'galaxy' || !specialStarOpened || postVideoStage !== 'jump') {
+    if (phase !== 'galaxy' || postVideoStage !== 'jump') {
       setJumpProgress(0);
+      postVideoJumpTimelineRef.current?.kill();
+      postVideoJumpTimelineRef.current = null;
       return;
     }
 
-    let frameId = 0;
-    const duration = 16800;
-    const start = window.performance.now();
+    postVideoJumpTimelineRef.current?.kill();
+    const progressState = { value: 0 };
 
-    const tick = (timestamp: number) => {
-      const nextProgress = Math.min(1, (timestamp - start) / duration);
-      setJumpProgress(nextProgress);
+    postVideoJumpTimelineRef.current = gsap.timeline();
+    postVideoJumpTimelineRef.current.to(progressState, {
+      value: 1,
+      duration: POST_VIDEO_TOTAL_DURATION,
+      ease: 'none',
+      onUpdate: () => setJumpProgress(progressState.value),
+    });
 
-      if (nextProgress < 1) {
-        frameId = window.requestAnimationFrame(tick);
-      }
+    return () => {
+      postVideoJumpTimelineRef.current?.kill();
+      postVideoJumpTimelineRef.current = null;
     };
-
-    frameId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [phase, postVideoStage, specialStarOpened]);
+  }, [phase, postVideoStage]);
 
   useEffect(() => {
-    if (phase !== 'galaxy' || !specialStarOpened || postVideoStage !== 'jump') {
+    if (phase !== 'galaxy' || postVideoStage !== 'jump') {
       if (postVideoJumpTimeoutRef.current !== null) {
         window.clearTimeout(postVideoJumpTimeoutRef.current);
         postVideoJumpTimeoutRef.current = null;
@@ -376,7 +416,7 @@ export function useExperienceController() {
       return;
     }
 
-    vibrateIfPossible([24, 40, 22, 40, 26, 40, 30]);
+    vibrateIfPossible([20, 34, 24, 30, 28, 28, 34, 26, 42, 24, 58]);
     postVideoJumpTimeoutRef.current = window.setTimeout(() => {
       setSpecialStarOpened(false);
       setPostVideoStage('idle');
@@ -384,7 +424,7 @@ export function useExperienceController() {
       setJumpProgress(0);
       setGalaxyStage('manifest');
       postVideoJumpTimeoutRef.current = null;
-    }, 16800);
+    }, POST_VIDEO_TOTAL_DURATION * 1000);
 
     return () => {
       if (postVideoJumpTimeoutRef.current !== null) {
@@ -392,7 +432,7 @@ export function useExperienceController() {
         postVideoJumpTimeoutRef.current = null;
       }
     };
-  }, [phase, postVideoStage, specialStarOpened]);
+  }, [phase, postVideoStage]);
 
   useEffect(() => {
     if (phase !== 'galaxy' || galaxyStage !== 'starbirth') {
@@ -464,10 +504,6 @@ export function useExperienceController() {
     transitionStartedRef.current = true;
     vibrateIfPossible([30, 20, 70, 20, 120]);
     setPhase('singularity');
-
-    transitionTimeoutRef.current = window.setTimeout(() => {
-      setPhase('galaxy');
-    }, 6800);
   }, []);
 
   const unlock = useCallback((rawValue: string): UnlockResult => {
@@ -688,11 +724,18 @@ export function useExperienceController() {
   }, [galaxyStage, phase]);
 
   const closeSpecialStarArtifact = useCallback(() => {
+    if (phase === 'galaxy' && galaxyStage === 'artifact') {
+      setSpecialStarOpened(false);
+      setPostVideoPhraseIndex(0);
+      setPostVideoStage('preface');
+      return;
+    }
+
     setPostVideoStage('idle');
     setPostVideoPhraseIndex(0);
     setJumpProgress(0);
     setSpecialStarOpened(false);
-  }, []);
+  }, [galaxyStage, phase]);
 
   const returnToSpecialStarVideo = useCallback(() => {
     if (phase !== 'galaxy' || galaxyStage !== 'artifact') {

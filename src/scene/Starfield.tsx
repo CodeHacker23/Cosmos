@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type {
   CalibrationAssessment,
   ExperiencePhase,
+  GalaxyPostVideoStage,
   IntroBeats,
   SliderState,
 } from '../features/experience/model/types';
@@ -15,6 +16,8 @@ import {
 interface StarfieldProps {
   beats: IntroBeats;
   phase: ExperiencePhase;
+  postVideoStage: GalaxyPostVideoStage;
+  jumpProgress: number;
   singularityProgress: number;
   sliders: SliderState;
   assessment: CalibrationAssessment;
@@ -41,10 +44,24 @@ const smoothDamp = (
   return target + (change + temp) * exp;
 };
 
+const flashBand = (value: number, start: number, peak: number, end: number) => {
+  if (value <= start || value >= end) {
+    return 0;
+  }
+
+  if (value <= peak) {
+    return (value - start) / (peak - start);
+  }
+
+  return 1 - (value - peak) / (end - peak);
+};
+
 export function Starfield({
   beats,
   phase,
-  singularityProgress,
+  postVideoStage,
+  jumpProgress,
+  singularityProgress: _singularityProgress,
   sliders,
   assessment,
 }: StarfieldProps) {
@@ -99,7 +116,10 @@ export function Starfield({
 
   useFrame((_, delta) => {
     const material = pointsRef.current?.material;
-    if (!material) {
+    if (!material || phase === 'singularity') {
+      if (pointsRef.current) {
+        pointsRef.current.visible = phase !== 'singularity';
+      }
       return;
     }
 
@@ -154,14 +174,21 @@ export function Starfield({
       0.01,
     );
 
-    const collapse = THREE.MathUtils.smootherstep(singularityProgress, 0.08, 0.45);
-    const detonation = THREE.MathUtils.smootherstep(singularityProgress, 0.45, 0.72);
-    const aftermath = THREE.MathUtils.smootherstep(singularityProgress, 0.72, 1);
+    const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
+    const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
+    const jumpDive = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.02, 0.38) : 0;
+    const jumpIgnition = isPostVideoJump
+      ? THREE.MathUtils.smootherstep(flashBand(jumpProgress, 0.28, 0.44, 0.62), 0, 1)
+      : 0;
+    const jumpTraverse = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.5, 0.86) : 0;
+    const jumpAfterglow = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.86, 1) : 0;
     const gravityInfluence = material.uniforms.uGravity.value;
     const syncInfluence = material.uniforms.uSync.value;
     const targetWarp =
-      phase === 'singularity'
-        ? 0.22 + collapse * 0.45 + detonation * 0.95 - aftermath * 0.42
+      isPostVideoJump
+        ? 0.08 + jumpDive * 0.3 + jumpIgnition * 0.92 + jumpTraverse * 1.78 - jumpAfterglow * 0.48
+        : isPostVideoPreface
+          ? 0.12
         : phase === 'galaxy'
           ? 0.04
           : assessment.match * 0.04;
@@ -169,13 +196,16 @@ export function Starfield({
     material.uniforms.uWarp.value = THREE.MathUtils.lerp(
       material.uniforms.uWarp.value,
       targetWarp,
-      phase === 'singularity' ? 0.055 : 0.02,
+      0.02,
     );
 
     if (pointsRef.current) {
+      pointsRef.current.visible = true;
       const targetRotationY =
-        phase === 'singularity'
-          ? 0.001 + collapse * 0.0025 + detonation * 0.006
+        isPostVideoJump
+          ? 0.0004 + jumpDive * 0.0016 + jumpTraverse * 0.0048
+          : isPostVideoPreface
+            ? 0.00032
           : phase === 'galaxy'
             ? 0.00018
             : 0.00028 + gravityInfluence * 0.00082;
@@ -189,23 +219,31 @@ export function Starfield({
       pointsRef.current.rotation.y += inertialRotationY;
       pointsRef.current.rotation.x = THREE.MathUtils.lerp(
         pointsRef.current.rotation.x,
-        phase === 'singularity'
-          ? 0.05 + collapse * 0.08
+        isPostVideoJump
+          ? 0.12 + jumpDive * 0.14 - jumpTraverse * 0.05
+          : isPostVideoPreface
+            ? 0.09
           : phase === 'galaxy'
             ? 0.07
             : 0.04,
-        phase === 'singularity' ? 0.045 : 0.022,
+        0.022,
       );
       pointsRef.current.rotation.z = THREE.MathUtils.lerp(
         pointsRef.current.rotation.z,
-        phase === 'galaxy' ? 0.012 : 0,
-        phase === 'singularity' ? 0.025 : 0.02,
+        isPostVideoJump ? 0.05 + jumpIgnition * 0.04 : phase === 'galaxy' ? 0.012 : 0,
+        0.02,
       );
       pointsRef.current.position.z = smoothDamp(
         pointsRef.current.position.z,
-        phase === 'galaxy' ? -14 : 0,
+        isPostVideoJump
+          ? -18 - jumpDive * 10 - jumpTraverse * 32
+          : isPostVideoPreface
+            ? -17
+            : phase === 'galaxy'
+              ? -14
+              : 0,
         sliderMotionRef.current.driftVelocity,
-        phase === 'galaxy' ? 0.85 : 0.42,
+        isPostVideoJump ? 0.42 : phase === 'galaxy' ? 0.85 : 0.42,
         frameDelta,
       );
       pointsRef.current.scale.setScalar(
@@ -213,11 +251,15 @@ export function Starfield({
           pointsRef.current.scale.x,
           phase === 'calibration'
             ? 1 + Math.sin(material.uniforms.uTime.value * (0.48 + syncInfluence * 0.42)) * syncInfluence * 0.026
+            : isPostVideoJump
+              ? 0.96 + jumpIgnition * 0.1 + jumpTraverse * 0.06
+              : isPostVideoPreface
+                ? 0.94
             : phase === 'galaxy'
               ? 0.9
             : 1,
           sliderMotionRef.current.scaleVelocity,
-          phase === 'singularity' ? 0.22 : 0.38,
+          0.38,
           frameDelta,
         ),
       );

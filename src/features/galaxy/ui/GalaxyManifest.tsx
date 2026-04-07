@@ -14,6 +14,7 @@ export function GalaxyManifest({ artifacts = storyConfig.galaxy.artifacts }: Gal
         <p className="eyebrow">{memoryCopy.memoryEyebrow}</p>
         <h3>{memoryCopy.memoryTitle}</h3>
         <p>{memoryCopy.memoryDescription}</p>
+        <p>Вращай этот мир мышкой или пальцем и нажимай на пульсирующие звезды.</p>
         <p>{memoryCopy.resetDescription}</p>
 
         <div className="artifact-list">

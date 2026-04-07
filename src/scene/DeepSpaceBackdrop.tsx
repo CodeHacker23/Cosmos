@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { ExperiencePhase, IntroBeats } from '../features/experience/model/types';
+import type { ExperiencePhase, GalaxyPostVideoStage, IntroBeats } from '../features/experience/model/types';
 
 const backgroundVertexShader = `
 uniform float uTime;
@@ -185,16 +185,39 @@ function randomSpherePoint(radius: number) {
   );
 }
 
+const flashBand = (value: number, start: number, peak: number, end: number) => {
+  if (value <= start || value >= end) {
+    return 0;
+  }
+
+  if (value <= peak) {
+    return (value - start) / (peak - start);
+  }
+
+  return 1 - (value - peak) / (end - peak);
+};
+
+const memoryWorldConfigs = [
+  { position: new THREE.Vector3(-10, 4.5, -30), scale: 6.4, color: '#ffbc80', start: 0.34 },
+  { position: new THREE.Vector3(8.4, -3.2, -42), scale: 7.6, color: '#79d2ff', start: 0.48 },
+  { position: new THREE.Vector3(-7.2, -1.5, -56), scale: 7.1, color: '#c39dff', start: 0.62 },
+  { position: new THREE.Vector3(10.2, 5.8, -72), scale: 8.8, color: '#ff97d8', start: 0.76 },
+] as const;
+
 interface DeepSpaceBackdropProps {
   beats: IntroBeats;
   phase: ExperiencePhase;
   singularityProgress: number;
+  postVideoStage: GalaxyPostVideoStage;
+  jumpProgress: number;
 }
 
 export function DeepSpaceBackdrop({
   beats,
   phase,
   singularityProgress,
+  postVideoStage,
+  jumpProgress,
 }: DeepSpaceBackdropProps) {
   const backdropGroupRef = useRef<THREE.Group | null>(null);
   const starPointsRef =
@@ -206,6 +229,9 @@ export function DeepSpaceBackdrop({
   const milkyWayRef = useRef<THREE.Mesh | null>(null);
   const accentNebulaRef = useRef<THREE.Mesh | null>(null);
   const galaxyMistRef = useRef<THREE.Mesh | null>(null);
+  const corePortalRef = useRef<THREE.Mesh | null>(null);
+  const gateRingRef = useRef<THREE.Mesh | null>(null);
+  const memoryWorldRefs = useRef<Array<THREE.Mesh | null>>([]);
 
   const stars = useMemo(() => {
     const positions = new Float32Array(STAR_COUNT * 3);
@@ -277,17 +303,24 @@ export function DeepSpaceBackdrop({
       phase === 'singularity'
         ? THREE.MathUtils.smootherstep(singularityProgress, 0.4, 0.72)
         : 0;
+    const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
+    const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
+    const jumpDive = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.02, 0.34) : 0;
+    const jumpIgnition = isPostVideoJump ? flashBand(jumpProgress, 0.28, 0.42, 0.58) : 0;
+    const jumpTraverse = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.48, 0.9) : 0;
+    const jumpAfterglow = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.88, 1) : 0;
     const galaxyParallax = phase === 'galaxy' ? 1 : 0;
+    const postVideoDrift = isPostVideoJump ? 0.34 : isPostVideoPreface ? 0.52 : galaxyParallax;
 
     if (backdropGroupRef.current) {
       backdropGroupRef.current.position.x = THREE.MathUtils.lerp(
         backdropGroupRef.current.position.x,
-        state.pointer.x * 1.35 * galaxyParallax,
+        state.pointer.x * 1.35 * postVideoDrift,
         0.025,
       );
       backdropGroupRef.current.position.y = THREE.MathUtils.lerp(
         backdropGroupRef.current.position.y,
-        state.pointer.y * 0.72 * galaxyParallax,
+        state.pointer.y * 0.72 * postVideoDrift - jumpDive * 0.16,
         0.025,
       );
     }
@@ -296,13 +329,18 @@ export function DeepSpaceBackdrop({
       starPointsRef.current.material.uniforms.uTime.value += delta;
       starPointsRef.current.material.uniforms.uReveal.value = THREE.MathUtils.lerp(
         starPointsRef.current.material.uniforms.uReveal.value,
-        beats.starRevealBeat.progress,
+        isPostVideoPreface || isPostVideoJump ? 1 : beats.starRevealBeat.progress,
         0.008,
       );
-      starPointsRef.current.rotation.y += 0.00004;
+      starPointsRef.current.rotation.y += 0.00004 + jumpDive * 0.00032 + jumpTraverse * 0.00088;
       starPointsRef.current.rotation.x = Math.sin(
         starPointsRef.current.material.uniforms.uTime.value * 0.02,
-      ) * 0.04;
+      ) * (0.04 + jumpDive * 0.06);
+      starPointsRef.current.position.z = THREE.MathUtils.lerp(
+        starPointsRef.current.position.z,
+        isPostVideoJump ? -12 - jumpTraverse * 22 : 0,
+        0.035,
+      );
       starPointsRef.current.visible = true;
     }
 
@@ -310,38 +348,45 @@ export function DeepSpaceBackdrop({
       dustPointsRef.current.material.uniforms.uTime.value += delta;
       dustPointsRef.current.material.uniforms.uReveal.value = THREE.MathUtils.lerp(
         dustPointsRef.current.material.uniforms.uReveal.value,
-        beats.nebulaRevealBeat.progress,
+        isPostVideoPreface || isPostVideoJump ? 1 : beats.nebulaRevealBeat.progress,
         0.007,
       );
-      dustPointsRef.current.rotation.z = -0.42;
-      dustPointsRef.current.rotation.y += 0.00009;
-      dustPointsRef.current.position.z = -14;
-      dustPointsRef.current.visible = blastWindow < 0.55;
+      dustPointsRef.current.rotation.z = -0.42 + jumpDive * 0.18;
+      dustPointsRef.current.rotation.y += 0.00009 + jumpTraverse * 0.0012;
+      dustPointsRef.current.position.z = isPostVideoJump ? -24 - jumpTraverse * 18 : -14;
+      dustPointsRef.current.visible = blastWindow < 0.55 || isPostVideoPreface || isPostVideoJump;
     }
 
     if (warmNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.85 + Math.sin(time * 0.35) * 0.15;
       warmNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.12 * pulse * (1 - blastWindow * 0.45);
+        beats.nebulaRevealBeat.progress * 0.12 * pulse * (1 - blastWindow * 0.45) +
+        (isPostVideoPreface ? 0.035 : 0) +
+        jumpDive * 0.05;
     }
 
     if (coolNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.86 + Math.sin(time * 0.32 + 0.8) * 0.14;
       coolNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.11 * pulse * (1 - blastWindow * 0.45);
+        beats.nebulaRevealBeat.progress * 0.11 * pulse * (1 - blastWindow * 0.45) +
+        (isPostVideoPreface ? 0.032 : 0) +
+        jumpDive * 0.045;
     }
 
     if (milkyWayRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.92 + Math.sin(time * 0.18 + 0.6) * 0.08;
       milkyWayRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.16 * pulse * (1 - blastWindow * 0.3);
-      milkyWayRef.current.rotation.z = -0.36;
+        (beats.nebulaRevealBeat.progress * 0.16 * pulse * (1 - blastWindow * 0.3) + jumpDive * 0.08) *
+        (1 - jumpTraverse * 0.78);
+      milkyWayRef.current.rotation.z = -0.36 + jumpDive * 0.22;
     }
 
     if (accentNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.88 + Math.sin(time * 0.28 + 1.8) * 0.12;
       accentNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75);
+        beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75) +
+        jumpIgnition * 0.07 +
+        jumpAfterglow * 0.04;
     }
 
     if (galaxyMistRef.current) {
@@ -352,11 +397,71 @@ export function DeepSpaceBackdrop({
         material.uniforms.uTime.value += delta;
         material.uniforms.uOpacity.value = THREE.MathUtils.lerp(
           material.uniforms.uOpacity.value,
-          phase === 'galaxy' ? 0.065 : 0,
+          phase === 'galaxy'
+            ? isPostVideoJump
+              ? 0.16 + jumpIgnition * 0.1 - jumpAfterglow * 0.05
+              : isPostVideoPreface
+                ? 0.11
+                : 0.065
+            : 0,
           0.03,
         );
       }
     }
+
+    if (corePortalRef.current) {
+      corePortalRef.current.position.z = THREE.MathUtils.lerp(
+        corePortalRef.current.position.z,
+        isPostVideoJump ? -34 + jumpDive * 10 + jumpTraverse * 14 : -44,
+        0.08,
+      );
+      corePortalRef.current.scale.setScalar(
+        9.5 + (isPostVideoPreface ? 1.8 : 0) + jumpDive * 7.2 + jumpIgnition * 5.8 + jumpTraverse * 9.5,
+      );
+      const material = corePortalRef.current.material;
+      if (material instanceof THREE.MeshBasicMaterial) {
+        material.opacity = (isPostVideoPreface ? 0.06 : 0) + jumpDive * 0.1 + jumpIgnition * 0.15 + jumpAfterglow * 0.05;
+      }
+    }
+
+    if (gateRingRef.current) {
+      gateRingRef.current.rotation.z += 0.0018 + jumpDive * 0.014 + jumpTraverse * 0.02;
+      gateRingRef.current.rotation.x = Math.sin(time * 0.6) * 0.24;
+      gateRingRef.current.position.z = THREE.MathUtils.lerp(
+        gateRingRef.current.position.z,
+        isPostVideoJump ? -24 + jumpDive * 6 + jumpTraverse * 11 : -30,
+        0.08,
+      );
+      gateRingRef.current.scale.setScalar(2.6 + jumpDive * 1.4 + jumpIgnition * 2.2 + jumpTraverse * 2.8);
+      const material = gateRingRef.current.material;
+      if (material instanceof THREE.MeshBasicMaterial) {
+        material.opacity = jumpIgnition * 0.18 + jumpTraverse * 0.08;
+      }
+    }
+
+    memoryWorldRefs.current.forEach((world, index) => {
+      if (!world) {
+        return;
+      }
+
+      const config = memoryWorldConfigs[index];
+      const localTravel = isPostVideoJump
+        ? THREE.MathUtils.clamp((jumpProgress - config.start) / 0.24, 0, 1)
+        : 0;
+      const presence = isPostVideoJump ? flashBand(jumpProgress, config.start, config.start + 0.08, config.start + 0.24) : 0;
+      world.position.set(
+        config.position.x * (1 - localTravel * 0.72),
+        config.position.y * (1 - localTravel * 0.68),
+        config.position.z + localTravel * 46,
+      );
+      world.rotation.y += 0.002 + presence * 0.035;
+      world.rotation.x += 0.001 + presence * 0.02;
+      world.scale.setScalar(config.scale + localTravel * 5.5 + presence * 3.5);
+      const material = world.material;
+      if (material instanceof THREE.MeshBasicMaterial) {
+        material.opacity = presence * 0.16 + localTravel * (1 - localTravel) * 0.04;
+      }
+    });
   });
 
   return (
@@ -408,6 +513,45 @@ export function DeepSpaceBackdrop({
           transparent
         />
       </mesh>
+      <mesh position={[0, 0, -44]} ref={corePortalRef} scale={[9.5, 9.5, 9.5]}>
+        <sphereGeometry args={[1, 48, 48]} />
+        <meshBasicMaterial
+          blending={THREE.AdditiveBlending}
+          color="#f1d7ff"
+          depthWrite={false}
+          opacity={0}
+          transparent
+        />
+      </mesh>
+      <mesh position={[0, 0, -30]} ref={gateRingRef} rotation={[0.6, 0.2, 0]}>
+        <torusGeometry args={[2.4, 0.18, 24, 128]} />
+        <meshBasicMaterial
+          blending={THREE.AdditiveBlending}
+          color="#bca8ff"
+          depthWrite={false}
+          opacity={0}
+          transparent
+        />
+      </mesh>
+      {memoryWorldConfigs.map((world, index) => (
+        <mesh
+          key={world.color}
+          position={world.position.toArray()}
+          ref={(node) => {
+            memoryWorldRefs.current[index] = node;
+          }}
+          scale={[world.scale, world.scale, world.scale]}
+        >
+          <sphereGeometry args={[1, 30, 30]} />
+          <meshBasicMaterial
+            blending={THREE.AdditiveBlending}
+            color={world.color}
+            depthWrite={false}
+            opacity={0}
+            transparent
+          />
+        </mesh>
+      ))}
 
       <points ref={starPointsRef}>
         <bufferGeometry>
