@@ -1,9 +1,14 @@
+/**
+ * Длительность гиперпрыжка после видео (post-video jump): один источник правды.
+ * `jumpProgress` 0→1 за столько же секунд движет GSAP в useExperienceController;
+ * таймаут перехода в newspace использует то же значение (POST_VIDEO_TOTAL_DURATION).
+ */
 export const POST_VIDEO_TRANSIT = {
-  coreApproach: 3,
-  phraseHold: 6,
+  coreApproach: 3.15,
+  phraseHold: 1.05,
   phraseCount: 3,
-  galaxyFlight: 7,
-  destinationSettle: 5,
+  galaxyFlight: 1.95,
+  destinationSettle: 0.75,
 } as const;
 
 export const POST_VIDEO_TUNNEL_DURATION =
@@ -14,6 +19,9 @@ export const POST_VIDEO_TOTAL_DURATION =
   POST_VIDEO_TUNNEL_DURATION +
   POST_VIDEO_TRANSIT.galaxyFlight +
   POST_VIDEO_TRANSIT.destinationSettle;
+
+/** Длительность прыжка в секундах (= сумма фаз выше, сейчас 9). */
+export const POST_VIDEO_JUMP_SECONDS = POST_VIDEO_TOTAL_DURATION;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -47,12 +55,15 @@ export const getPostVideoTransitState = (progress: number): PostVideoTransitStat
     Math.max(0, Math.floor(tunnelTime / POST_VIDEO_TRANSIT.phraseHold)),
   );
   const phraseLocal = tunnelTime - discretePhraseIndex * POST_VIDEO_TRANSIT.phraseHold;
+  const fadeInWindow = POST_VIDEO_TRANSIT.phraseHold * 0.42;
+  const fadeOutWindow = POST_VIDEO_TRANSIT.phraseHold * 0.58;
   const phraseVisibility =
     time < coreEnd || time > tunnelEnd
       ? 0
       : Math.min(
           1,
-          normalizeRange(phraseLocal, 0, 0.8) * normalizeRange(POST_VIDEO_TRANSIT.phraseHold - phraseLocal, 0, 1.2),
+          normalizeRange(phraseLocal, 0, fadeInWindow) *
+            normalizeRange(POST_VIDEO_TRANSIT.phraseHold - phraseLocal, 0, fadeOutWindow),
         );
 
   return {

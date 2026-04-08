@@ -39,9 +39,15 @@ export function SpecialStarArtifactPanel({ onClose, onContinue }: SpecialStarArt
           </button>
         </div>
 
-        <div className="special-star-overlay__video-slot" aria-hidden="true">
+        <div className="special-star-overlay__video-slot">
           <div className="special-star-overlay__video-core">
-            <span>FULLSCREEN VIDEO ORBIT SLOT</span>
+            <video
+              className="special-star-overlay__video-player"
+              controls
+              playsInline
+              preload="auto"
+              src={copy.videoSrc}
+            />
           </div>
         </div>
 

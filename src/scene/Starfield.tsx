@@ -8,6 +8,7 @@ import type {
   IntroBeats,
   SliderState,
 } from '../features/experience/model/types';
+import { getPostVideoTransitState } from './postVideoTransit';
 import {
   starfieldFragmentShader,
   starfieldVertexShader,
@@ -176,6 +177,8 @@ export function Starfield({
 
     const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
     const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
+    const jumpTransit = isPostVideoJump ? getPostVideoTransitState(jumpProgress) : null;
+    const starWarpMute = jumpTransit ? 1 - THREE.MathUtils.smootherstep(jumpTransit.tunnel, 0, 0.16) : 1;
     const jumpDive = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.02, 0.38) : 0;
     const jumpIgnition = isPostVideoJump
       ? THREE.MathUtils.smootherstep(flashBand(jumpProgress, 0.28, 0.44, 0.62), 0, 1)
@@ -186,7 +189,8 @@ export function Starfield({
     const syncInfluence = material.uniforms.uSync.value;
     const targetWarp =
       isPostVideoJump
-        ? 0.08 + jumpDive * 0.3 + jumpIgnition * 0.92 + jumpTraverse * 1.78 - jumpAfterglow * 0.48
+        ? (0.08 + jumpDive * 0.3 + jumpIgnition * 0.92 + jumpTraverse * 1.78 - jumpAfterglow * 0.48) *
+          starWarpMute
         : isPostVideoPreface
           ? 0.12
         : phase === 'galaxy'
@@ -199,8 +203,11 @@ export function Starfield({
       0.02,
     );
 
+    const tunnelFade = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.38, 0.52) : 0;
+
     if (pointsRef.current) {
-      pointsRef.current.visible = true;
+      // Во время jump не показываем: warp в starfieldShaders жмёт в мировой XY — на экране «половина кадра».
+      pointsRef.current.visible = !isPostVideoJump && tunnelFade < 0.99;
       const targetRotationY =
         isPostVideoJump
           ? 0.0004 + jumpDive * 0.0016 + jumpTraverse * 0.0048
@@ -246,18 +253,19 @@ export function Starfield({
         isPostVideoJump ? 0.42 : phase === 'galaxy' ? 0.85 : 0.42,
         frameDelta,
       );
+      const baseStarScale = phase === 'calibration'
+        ? 1 + Math.sin(material.uniforms.uTime.value * (0.48 + syncInfluence * 0.42)) * syncInfluence * 0.026
+        : isPostVideoJump
+          ? 0.96 + jumpIgnition * 0.1 + jumpTraverse * 0.06
+          : isPostVideoPreface
+            ? 0.94
+          : phase === 'galaxy'
+            ? 0.9
+          : 1;
       pointsRef.current.scale.setScalar(
         smoothDamp(
           pointsRef.current.scale.x,
-          phase === 'calibration'
-            ? 1 + Math.sin(material.uniforms.uTime.value * (0.48 + syncInfluence * 0.42)) * syncInfluence * 0.026
-            : isPostVideoJump
-              ? 0.96 + jumpIgnition * 0.1 + jumpTraverse * 0.06
-              : isPostVideoPreface
-                ? 0.94
-            : phase === 'galaxy'
-              ? 0.9
-            : 1,
+          baseStarScale * (1 - tunnelFade),
           sliderMotionRef.current.scaleVelocity,
           0.38,
           frameDelta,

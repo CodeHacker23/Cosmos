@@ -91,6 +91,8 @@ export default function App() {
     galaxySearchProgress.stage === 'artifact'
       ? galaxySearchProgress.stage
       : null;
+  const cinematicPostVideo =
+    phase === 'galaxy' && galaxySearchProgress.postVideoStage === 'jump';
 
   const handleRevealGalaxySignal = (signalId: string, screenPosition: ScreenSpacePoint) => {
     setRevealedSignalScreenPosition(screenPosition);
@@ -120,6 +122,7 @@ export default function App() {
         className={`app-header ${headerVisible ? 'is-visible' : 'is-hidden'} ${
           compactHeader ? 'app-header--compact' : ''
         }`}
+        style={{ opacity: cinematicPostVideo ? 0 : undefined, pointerEvents: cinematicPostVideo ? 'none' : undefined }}
       >
         <div className="app-header__brand">
           <p className="eyebrow">{storyConfig.subtitle}</p>
@@ -180,7 +183,7 @@ export default function App() {
         />
       )}
 
-      {phase === 'galaxy' && galaxySearchProgress.stage === 'search' && (
+      {phase === 'galaxy' && galaxySearchProgress.stage === 'search' && !cinematicPostVideo && (
         <GalaxySearchPanel
           artifacts={storyConfig.galaxy.artifacts}
           onCloseReveal={handleCloseGalaxyReveal}
@@ -192,6 +195,7 @@ export default function App() {
 
       {phase === 'galaxy' &&
         ritualPanelStage &&
+        !cinematicPostVideo &&
         !galaxySearchProgress.specialStarOpened && (
           <GalaxyWeavePanel
             linkedCount={galaxySearchProgress.linkedSignalIds.length}
@@ -204,6 +208,7 @@ export default function App() {
 
       {phase === 'galaxy' &&
         galaxySearchProgress.specialStarOpened &&
+        !cinematicPostVideo &&
         galaxySearchProgress.postVideoStage === 'idle' && (
           <SpecialStarArtifactPanel
             onClose={closeSpecialStarArtifact}

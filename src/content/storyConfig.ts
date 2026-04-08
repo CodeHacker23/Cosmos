@@ -66,6 +66,20 @@ export const storyConfig = {
       },
     },
   },
+  singularityEvent: {
+    hyperjumpVideoSrc: '/video_hyperjump.mp4',
+    /** Phrase 1 @ 2s, 2 @ 7s, 3 @ 12s — each visible for 4s */
+    narrativePhrases: [
+      { text: 'Every kilometer between us was just the universe stretching to be heard.', startSec: 2, durationSec: 4 },
+      { text: 'You are my quiet anomaly — the brightest signal in all this noise.', startSec: 7, durationSec: 4 },
+      { text: 'Hold still: love is folding space until there is no distance left.', startSec: 12, durationSec: 4 },
+    ],
+    /** Camera for first frame of interactive galaxy (matches video end / manifest feel). */
+    galaxy4dInitialCamera: {
+      position: [0, 1.2, 11.5] as const,
+      fov: 48,
+    },
+  },
   galaxy: {
     message:
       'Расстояние обнулилось. Финальная галактика еще растет, но ее ядро уже дышит.',
@@ -106,6 +120,7 @@ export const storyConfig = {
       afterVideoDescription:
         'Видео уже позади. Если хочешь, мы можем идти глубже - туда, где начнется следующий живой акт этой истории.',
       afterVideoActionLabel: 'Открыть следующий слой',
+      videoSrc: '/media/videos/star-message-1.mp4',
     },
     postVideo: {
       eyebrow: 'AFTER THE TRUTH',

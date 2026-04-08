@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { ExperiencePhase, GalaxyPostVideoStage, IntroBeats } from '../features/experience/model/types';
+import { getPostVideoTransitState } from './postVideoTransit';
 
 const backgroundVertexShader = `
 uniform float uTime;
@@ -305,10 +306,15 @@ export function DeepSpaceBackdrop({
         : 0;
     const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
     const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
+    const jumpTransit = isPostVideoJump ? getPostVideoTransitState(jumpProgress) : null;
+    const tunnelKill =
+      jumpTransit !== null ? 1 - THREE.MathUtils.smootherstep(jumpTransit.tunnel, 0, 0.2) : 1;
     const jumpDive = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.02, 0.34) : 0;
     const jumpIgnition = isPostVideoJump ? flashBand(jumpProgress, 0.28, 0.42, 0.58) : 0;
     const jumpTraverse = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.48, 0.9) : 0;
     const jumpAfterglow = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.88, 1) : 0;
+    const tunnelFade = isPostVideoJump ? THREE.MathUtils.smootherstep(jumpProgress, 0.38, 0.52) : 0;
+    const sceneFade = (1 - tunnelFade) * (isPostVideoJump ? tunnelKill : 1);
     const galaxyParallax = phase === 'galaxy' ? 1 : 0;
     const postVideoDrift = isPostVideoJump ? 0.34 : isPostVideoPreface ? 0.52 : galaxyParallax;
 
@@ -341,7 +347,9 @@ export function DeepSpaceBackdrop({
         isPostVideoJump ? -12 - jumpTraverse * 22 : 0,
         0.035,
       );
-      starPointsRef.current.visible = true;
+      starPointsRef.current.visible =
+        tunnelFade < 0.99 && !isPostVideoJump;
+      starPointsRef.current.scale.setScalar(1 - tunnelFade * 0.5);
     }
 
     if (dustPointsRef.current) {
@@ -354,39 +362,44 @@ export function DeepSpaceBackdrop({
       dustPointsRef.current.rotation.z = -0.42 + jumpDive * 0.18;
       dustPointsRef.current.rotation.y += 0.00009 + jumpTraverse * 0.0012;
       dustPointsRef.current.position.z = isPostVideoJump ? -24 - jumpTraverse * 18 : -14;
-      dustPointsRef.current.visible = blastWindow < 0.55 || isPostVideoPreface || isPostVideoJump;
+      dustPointsRef.current.visible =
+        tunnelFade < 0.99 && !isPostVideoJump && (blastWindow < 0.55 || isPostVideoPreface);
     }
 
     if (warmNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.85 + Math.sin(time * 0.35) * 0.15;
       warmNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.12 * pulse * (1 - blastWindow * 0.45) +
+        (beats.nebulaRevealBeat.progress * 0.12 * pulse * (1 - blastWindow * 0.45) +
         (isPostVideoPreface ? 0.035 : 0) +
-        jumpDive * 0.05;
+        jumpDive * 0.05) *
+        sceneFade;
     }
 
     if (coolNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.86 + Math.sin(time * 0.32 + 0.8) * 0.14;
       coolNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.11 * pulse * (1 - blastWindow * 0.45) +
+        (beats.nebulaRevealBeat.progress * 0.11 * pulse * (1 - blastWindow * 0.45) +
         (isPostVideoPreface ? 0.032 : 0) +
-        jumpDive * 0.045;
+        jumpDive * 0.045) *
+        sceneFade;
     }
 
     if (milkyWayRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.92 + Math.sin(time * 0.18 + 0.6) * 0.08;
       milkyWayRef.current.material.opacity =
         (beats.nebulaRevealBeat.progress * 0.16 * pulse * (1 - blastWindow * 0.3) + jumpDive * 0.08) *
-        (1 - jumpTraverse * 0.78);
+        (1 - jumpTraverse * 0.78) *
+        sceneFade;
       milkyWayRef.current.rotation.z = -0.36 + jumpDive * 0.22;
     }
 
     if (accentNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.88 + Math.sin(time * 0.28 + 1.8) * 0.12;
       accentNebulaRef.current.material.opacity =
-        beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75) +
+        (beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75) +
         jumpIgnition * 0.07 +
-        jumpAfterglow * 0.04;
+        jumpAfterglow * 0.04) *
+        sceneFade;
     }
 
     if (galaxyMistRef.current) {
@@ -406,36 +419,49 @@ export function DeepSpaceBackdrop({
             : 0,
           0.03,
         );
+        material.uniforms.uOpacity.value *= sceneFade;
       }
     }
 
     if (corePortalRef.current) {
+      const portalTunnelCap = isPostVideoJump ? tunnelKill : 1;
       corePortalRef.current.position.z = THREE.MathUtils.lerp(
         corePortalRef.current.position.z,
-        isPostVideoJump ? -34 + jumpDive * 10 + jumpTraverse * 14 : -44,
+        isPostVideoJump ? -34 + jumpDive * 10 + jumpTraverse * 14 * portalTunnelCap : -44,
         0.08,
       );
       corePortalRef.current.scale.setScalar(
-        9.5 + (isPostVideoPreface ? 1.8 : 0) + jumpDive * 7.2 + jumpIgnition * 5.8 + jumpTraverse * 9.5,
+        9.5 +
+          (isPostVideoPreface ? 1.8 : 0) +
+          jumpDive * 7.2 +
+          jumpIgnition * 5.8 +
+          jumpTraverse * 9.5 * portalTunnelCap,
       );
       const material = corePortalRef.current.material;
       if (material instanceof THREE.MeshBasicMaterial) {
-        material.opacity = (isPostVideoPreface ? 0.06 : 0) + jumpDive * 0.1 + jumpIgnition * 0.15 + jumpAfterglow * 0.05;
+        material.opacity =
+          ((isPostVideoPreface ? 0.06 : 0) + jumpDive * 0.1 + jumpIgnition * 0.15 + jumpAfterglow * 0.05) *
+          sceneFade *
+          portalTunnelCap;
       }
     }
 
     if (gateRingRef.current) {
-      gateRingRef.current.rotation.z += 0.0018 + jumpDive * 0.014 + jumpTraverse * 0.02;
+      const ringTunnelCap = isPostVideoJump ? tunnelKill : 1;
+      gateRingRef.current.rotation.z += 0.0018 + jumpDive * 0.014 + jumpTraverse * 0.02 * ringTunnelCap;
       gateRingRef.current.rotation.x = Math.sin(time * 0.6) * 0.24;
       gateRingRef.current.position.z = THREE.MathUtils.lerp(
         gateRingRef.current.position.z,
-        isPostVideoJump ? -24 + jumpDive * 6 + jumpTraverse * 11 : -30,
+        isPostVideoJump ? -24 + jumpDive * 6 + jumpTraverse * 11 * ringTunnelCap : -30,
         0.08,
       );
-      gateRingRef.current.scale.setScalar(2.6 + jumpDive * 1.4 + jumpIgnition * 2.2 + jumpTraverse * 2.8);
+      gateRingRef.current.scale.setScalar(
+        2.6 + jumpDive * 1.4 + jumpIgnition * 2.2 + jumpTraverse * 2.8 * ringTunnelCap,
+      );
       const material = gateRingRef.current.material;
       if (material instanceof THREE.MeshBasicMaterial) {
-        material.opacity = jumpIgnition * 0.18 + jumpTraverse * 0.08;
+        material.opacity =
+          (jumpIgnition * 0.18 + jumpTraverse * 0.08) * sceneFade * ringTunnelCap;
       }
     }
 
@@ -445,10 +471,14 @@ export function DeepSpaceBackdrop({
       }
 
       const config = memoryWorldConfigs[index];
+      const memTunnelCap = isPostVideoJump ? tunnelKill : 1;
       const localTravel = isPostVideoJump
-        ? THREE.MathUtils.clamp((jumpProgress - config.start) / 0.24, 0, 1)
+        ? THREE.MathUtils.clamp((jumpProgress - config.start) / 0.24, 0, 1) * memTunnelCap
         : 0;
-      const presence = isPostVideoJump ? flashBand(jumpProgress, config.start, config.start + 0.08, config.start + 0.24) : 0;
+      const presence =
+        isPostVideoJump
+          ? flashBand(jumpProgress, config.start, config.start + 0.08, config.start + 0.24) * memTunnelCap
+          : 0;
       world.position.set(
         config.position.x * (1 - localTravel * 0.72),
         config.position.y * (1 - localTravel * 0.68),
@@ -459,7 +489,7 @@ export function DeepSpaceBackdrop({
       world.scale.setScalar(config.scale + localTravel * 5.5 + presence * 3.5);
       const material = world.material;
       if (material instanceof THREE.MeshBasicMaterial) {
-        material.opacity = presence * 0.16 + localTravel * (1 - localTravel) * 0.04;
+        material.opacity = (presence * 0.16 + localTravel * (1 - localTravel) * 0.04) * sceneFade;
       }
     });
   });

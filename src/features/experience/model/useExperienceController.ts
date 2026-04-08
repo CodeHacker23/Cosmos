@@ -1,6 +1,6 @@
 import { gsap } from 'gsap';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { POST_VIDEO_TOTAL_DURATION } from '../../../scene/postVideoTransit';
+import { POST_VIDEO_JUMP_SECONDS } from '../../../scene/postVideoTransit';
 import { storyConfig } from '../../../content/storyConfig';
 import { SINGULARITY_TOTAL_DURATION } from '../../../scene/singularityTransit';
 import { assessCalibration } from './calibration';
@@ -396,7 +396,7 @@ export function useExperienceController() {
     postVideoJumpTimelineRef.current = gsap.timeline();
     postVideoJumpTimelineRef.current.to(progressState, {
       value: 1,
-      duration: POST_VIDEO_TOTAL_DURATION,
+      duration: POST_VIDEO_JUMP_SECONDS,
       ease: 'none',
       onUpdate: () => setJumpProgress(progressState.value),
     });
@@ -422,9 +422,9 @@ export function useExperienceController() {
       setPostVideoStage('idle');
       setPostVideoPhraseIndex(0);
       setJumpProgress(0);
-      setGalaxyStage('manifest');
+      setGalaxyStage('newspace');
       postVideoJumpTimeoutRef.current = null;
-    }, POST_VIDEO_TOTAL_DURATION * 1000);
+    }, POST_VIDEO_JUMP_SECONDS * 1000);
 
     return () => {
       if (postVideoJumpTimeoutRef.current !== null) {
@@ -776,6 +776,7 @@ export function useExperienceController() {
     setSpecialStarOpened(false);
     setPostVideoStage('jump');
   }, [galaxyStage, phase, postVideoStage]);
+
 
   const beginGalaxySearch = useCallback(() => {
     if (phase !== 'galaxy' || galaxyStage !== 'search' || galaxyIntroState !== 'preface') {

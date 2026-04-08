@@ -110,9 +110,9 @@ export function PostVideoActPanel({
           style={{ opacity: Math.max(0.12, 0.38 - jumpProgress * 0.16) }}
         />
         <div className="post-video-act__jump-shell">
-          {activeJumpLine && (
+          {activeJumpLine && jumpPhraseOpacity > 0.05 && (
             <div
-              className="post-video-act__quote post-video-act__quote--jump gate-panel"
+              className="post-video-act__quote post-video-act__quote--jump"
               style={{ opacity: jumpPhraseOpacity }}
             >
               <p>{activeJumpLine}</p>

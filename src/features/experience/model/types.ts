@@ -4,7 +4,13 @@ export type ExperiencePhase =
   | 'singularity'
   | 'galaxy';
 
-export type GalaxyStage = 'search' | 'weave' | 'starbirth' | 'artifact' | 'manifest';
+export type GalaxyStage =
+  | 'search'
+  | 'weave'
+  | 'starbirth'
+  | 'artifact'
+  | 'manifest'
+  | 'newspace';
 export type GalaxySearchIntroState = 'preface' | 'dissolving' | 'active';
 export type GalaxyPostVideoStage = 'idle' | 'preface' | 'jump';
 

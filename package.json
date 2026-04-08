@@ -12,6 +12,7 @@
     "@react-three/drei": "latest",
     "@react-three/fiber": "latest",
     "@react-three/postprocessing": "latest",
+    "framer-motion": "^12.38.0",
     "gsap": "latest",
     "react": "latest",
     "react-dom": "latest",

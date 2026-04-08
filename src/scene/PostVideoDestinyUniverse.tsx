@@ -1,11 +1,15 @@
 import { Html, OrbitControls } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { gsap } from 'gsap';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { storyConfig } from '../content/storyConfig';
 import type { ArtifactDefinition, GalaxyPostVideoStage, GalaxyStage } from '../features/experience/model/types';
-import { POST_VIDEO_TOTAL_DURATION, getPostVideoTransitState } from './postVideoTransit';
+import {
+  POST_VIDEO_TOTAL_DURATION,
+  POST_VIDEO_TRANSIT,
+  getPostVideoTransitState,
+} from './postVideoTransit';
 
 interface PostVideoDestinyUniverseProps {
   galaxyStage: GalaxyStage;
@@ -13,7 +17,7 @@ interface PostVideoDestinyUniverseProps {
   jumpProgress: number;
 }
 
-const TUNNEL_INSTANCE_COUNT = 120000;
+const TUNNEL_INSTANCE_COUNT = 24000;
 const DESTINATION_STAR_COUNT = 110000;
 
 const tunnelVertexShader = `
@@ -21,7 +25,12 @@ uniform float uTime;
 uniform float uVelocity;
 uniform float uApproach;
 uniform float uTunnel;
-uniform float uFlight;
+uniform vec3 uStreakDir;
+uniform vec3 uTunnelAnchor;
+uniform vec3 uCamRight;
+uniform vec3 uCamUp;
+uniform float uVisibleSeedMax;
+uniform float uLineGate;
 
 attribute float aSeed;
 attribute float aAngle;
@@ -31,53 +40,91 @@ attribute float aVelocity;
 attribute float aThickness;
 
 varying float vAlpha;
+varying float vAlong;
+varying float vRadial;
+varying float vAxisDist;
+varying float vSeed;
 varying vec2 vUv;
-
-mat2 rotate2d(float angle) {
-  float s = sin(angle);
-  float c = cos(angle);
-  return mat2(c, -s, s, c);
-}
 
 void main() {
   vUv = uv;
-  float tunnel = smoothstep(0.0, 1.0, uTunnel);
-  float flight = smoothstep(0.0, 1.0, uFlight);
+  vSeed = aSeed;
   float approach = smoothstep(0.0, 1.0, uApproach);
-  float velocity = max(1.0, uVelocity);
-  float zLoop = mod(aDepth + uTime * velocity * aVelocity, 260.0) - 130.0;
-  float tunnelRadius = mix(aRadius * (1.16 - approach * 0.42), aRadius * 1.75, tunnel);
-  vec2 radial = vec2(cos(aAngle), sin(aAngle)) * tunnelRadius;
+  float tunnelMix = smoothstep(0.0, 1.0, uTunnel);
+  float vel = max(1.0, uVelocity) * aVelocity;
 
-  vec2 local = position.xy;
-  float width = mix(0.018 + aThickness * 0.03, 0.005 + aThickness * 0.012, tunnel);
-  float length = mix(0.2 + aThickness * 0.48, 1.8 + velocity * 0.18 * aVelocity, tunnel);
-  length = mix(length, 0.8 + velocity * 0.04, flight);
-  local.x *= width;
-  local.y *= length;
+  vec3 D = normalize(uStreakDir);
+  vec3 Rax = normalize(uCamRight);
+  vec3 Uax = normalize(uCamUp);
 
-  vec2 rotated = rotate2d(aAngle) * local;
-  vec3 displaced = vec3(radial + rotated, -zLoop);
-  displaced.xy += normalize(radial) * sin(uTime * 0.7 + aSeed * 12.0) * flight * 0.7;
+  float expansion = mix(0.28, 1.0, approach) * mix(0.72, 1.0, tunnelMix);
+  float r = aRadius * expansion;
+  vRadial = clamp(aRadius / 36.0, 0.0, 1.0);
+  vAxisDist = r;
 
-  vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
+  vec2 d = vec2(cos(aAngle), sin(aAngle));
+  vec3 radialOffset = (Rax * d.x + Uax * d.y) * r;
+
+  float streakLen = max(0.85, (0.35 + uVelocity * 0.038) * (0.5 + aVelocity * 0.5));
+  streakLen *= mix(0.75, 1.2, tunnelMix);
+  streakLen *= mix(0.45, 1.0, approach);
+
+  float thin = 0.0045 + aThickness * 0.011;
+
+  float zSpan = 168.0;
+  // D смотрит на зрителя; zFlow должен быть <= 0, иначе центр уходит ЗА камеру и половина
+  // инстансов клипится → «полосы только сверху». Держим поток только впереди по лучу взгляда.
+  float zFlow = -mod(aDepth + uTime * vel * 4.8, zSpan);
+  vec3 base = uTunnelAnchor + radialOffset + D * zFlow;
+
+  vec3 worldPos = base + Rax * position.x * thin + D * position.y * streakLen;
+
+  vec4 mvPosition = modelViewMatrix * vec4(worldPos, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
-  vAlpha = (0.12 + tunnel * 0.9 + flight * 0.18) * (0.5 + aVelocity * 0.75);
+  vAlong = uv.y;
+
+  float depthFade = 1.0 - smoothstep(-18.0, -1.2, zFlow);
+
+  float densityOk = step(aSeed, uVisibleSeedMax + 0.001);
+
+  vAlpha =
+    (0.34 + approach * 0.62) *
+    (0.42 + tunnelMix * 0.72) *
+    depthFade *
+    densityOk *
+    uLineGate *
+    1.35;
 }
 `;
 
 const tunnelFragmentShader = `
+uniform float uVisibleSeedMax;
+
 varying float vAlpha;
+varying float vAlong;
+varying float vRadial;
+varying float vAxisDist;
+varying float vSeed;
 varying vec2 vUv;
 
 void main() {
-  float beam = smoothstep(0.5, 0.08, abs(vUv.x - 0.5));
-  float tip = smoothstep(1.0, 0.08, vUv.y);
-  float tail = smoothstep(0.0, 0.18, vUv.y);
-  float glow = beam * tip * tail;
-  glow += pow(beam, 6.0) * 0.85;
-  gl_FragColor = vec4(vec3(1.0), clamp(glow * vAlpha, 0.0, 1.0));
+  if (vSeed > uVisibleSeedMax + 0.0005) {
+    discard;
+  }
+
+  float beam = smoothstep(0.5, 0.03, abs(vUv.x - 0.5));
+  float tip = smoothstep(1.0, 0.03, vUv.y);
+  float tail = smoothstep(0.0, 0.1, vUv.y);
+  float lineCore = beam * tip * tail;
+
+  float hole = smoothstep(1.85, 6.4, vAxisDist);
+  hole = pow(hole, 1.02);
+
+  vec3 col = vec3(0.98, 0.99, 1.0);
+
+  float a = clamp(lineCore * vAlpha * 1.92 * hole, 0.0, 1.0);
+  gl_FragColor = vec4(col * 1.72, a);
 }
 `;
 
@@ -156,10 +203,10 @@ function buildTunnelGeometry() {
   for (let index = 0; index < TUNNEL_INSTANCE_COUNT; index += 1) {
     seeds[index] = Math.random();
     angles[index] = Math.random() * Math.PI * 2;
-    radii[index] = 5.8 + Math.pow(Math.random(), 0.35) * 14.5;
+    radii[index] = 0.12 + Math.pow(Math.random(), 0.88) * 34.0;
     depths[index] = Math.random() * 260;
-    velocities[index] = 0.6 + Math.random() * 1.8;
-    thickness[index] = 0.35 + Math.random() * 0.9;
+    velocities[index] = 0.45 + Math.random() * 1.55;
+    thickness[index] = 0.25 + Math.random() * 0.75;
   }
 
   base.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seeds, 1));
@@ -176,9 +223,11 @@ function PostVideoWarpTunnel({
   postVideoStage,
   jumpProgress,
 }: Pick<PostVideoDestinyUniverseProps, 'postVideoStage' | 'jumpProgress'>) {
+  const { camera } = useThree();
   const meshRef = useRef<THREE.InstancedMesh | null>(null);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const velocityTweenRef = useRef<gsap.core.Tween | null>(null);
+  const viewDirScratch = useRef(new THREE.Vector3(0, 0, -1));
   const geometry = useMemo(() => buildTunnelGeometry(), []);
   const uniforms = useMemo(
     () => ({
@@ -186,7 +235,12 @@ function PostVideoWarpTunnel({
       uVelocity: { value: 1 },
       uApproach: { value: 0 },
       uTunnel: { value: 0 },
-      uFlight: { value: 0 },
+      uStreakDir: { value: new THREE.Vector3(0, 0, 1) },
+      uTunnelAnchor: { value: new THREE.Vector3(0, 0, 0) },
+      uCamRight: { value: new THREE.Vector3(1, 0, 0) },
+      uCamUp: { value: new THREE.Vector3(0, 1, 0) },
+      uVisibleSeedMax: { value: 0.09 },
+      uLineGate: { value: 0 },
     }),
     [],
   );
@@ -213,10 +267,13 @@ function PostVideoWarpTunnel({
     }
 
     materialRef.current.uniforms.uVelocity.value = 1;
+    const coreHold = POST_VIDEO_TRANSIT.coreApproach;
+    const rampDuration = Math.max(2.4, POST_VIDEO_TOTAL_DURATION - coreHold - 1.0);
     velocityTweenRef.current = gsap.to(materialRef.current.uniforms.uVelocity, {
-      value: 200,
-      duration: POST_VIDEO_TOTAL_DURATION - 5,
-      ease: 'expo.in',
+      value: 72,
+      duration: rampDuration,
+      delay: coreHold,
+      ease: 'power2.in',
     });
 
     return () => {
@@ -234,17 +291,55 @@ function PostVideoWarpTunnel({
     materialRef.current.uniforms.uTime.value += delta;
     materialRef.current.uniforms.uApproach.value = transit.coreApproach;
     materialRef.current.uniforms.uTunnel.value = transit.tunnel;
-    materialRef.current.uniforms.uFlight.value = transit.galaxyFlight;
-    meshRef.current.visible = postVideoStage === 'jump' && (transit.tunnel > 0.001 || transit.coreApproach > 0.72);
+
+    materialRef.current.uniforms.uTunnelAnchor.value.copy(camera.position);
+    camera.getWorldDirection(viewDirScratch.current);
+    materialRef.current.uniforms.uStreakDir.value.copy(viewDirScratch.current).negate().normalize();
+
+    const e = camera.matrixWorld.elements;
+    materialRef.current.uniforms.uCamRight.value.set(e[0], e[1], e[2]).normalize();
+    materialRef.current.uniforms.uCamUp.value.set(e[4], e[5], e[6]).normalize();
+
+    const { coreApproach, tunnel, galaxyFlight, destination } = transit;
+    const lineGate = THREE.MathUtils.clamp(
+      THREE.MathUtils.smootherstep(coreApproach, 0.22, 0.72) * 0.75 +
+        tunnel +
+        galaxyFlight * 0.98 +
+        destination * 0.72,
+      0,
+      1,
+    );
+    materialRef.current.uniforms.uLineGate.value = lineGate;
+
+    const seedMax = THREE.MathUtils.clamp(
+      0.12 +
+        THREE.MathUtils.smootherstep(coreApproach, 0.2, 0.75) * 0.35 +
+        tunnel * 0.52 +
+        galaxyFlight * 0.38 +
+        destination * 0.28,
+      0.1,
+      1.02,
+    );
+    materialRef.current.uniforms.uVisibleSeedMax.value = seedMax;
+
+    meshRef.current.visible = postVideoStage === 'jump';
   });
 
   return (
-    <instancedMesh args={[geometry, undefined, TUNNEL_INSTANCE_COUNT]} frustumCulled={false} ref={meshRef}>
+    <instancedMesh
+      args={[geometry, undefined, TUNNEL_INSTANCE_COUNT]}
+      frustumCulled={false}
+      ref={meshRef}
+      renderOrder={20}
+    >
       <shaderMaterial
         blending={THREE.AdditiveBlending}
+        depthTest={false}
         depthWrite={false}
+        fog={false}
         fragmentShader={tunnelFragmentShader}
         ref={materialRef}
+        side={THREE.DoubleSide}
         transparent
         uniforms={uniforms}
         vertexShader={tunnelVertexShader}
@@ -253,87 +348,11 @@ function PostVideoWarpTunnel({
   );
 }
 
-function FlightGalaxies({
-  postVideoStage,
-  jumpProgress,
-}: Pick<PostVideoDestinyUniverseProps, 'postVideoStage' | 'jumpProgress'>) {
-  const transit = getPostVideoTransitState(jumpProgress);
-  const nebulaA = useMemo(() => createNebulaTexture('rgba(255,182,138,0.7)', 'rgba(116,93,255,0.32)'), []);
-  const nebulaB = useMemo(() => createNebulaTexture('rgba(148,215,255,0.68)', 'rgba(222,167,255,0.28)'), []);
-  const groupRefs = useRef<Array<THREE.Group | null>>([]);
-  const configs = useMemo(
-    () => [
-      { x: -9, y: 5.4, z: -82, scale: 5.5, tex: nebulaA },
-      { x: 8.5, y: -4.6, z: -106, scale: 6.7, tex: nebulaB },
-      { x: -11.4, y: -5.1, z: -132, scale: 7.8, tex: nebulaA },
-      { x: 10.2, y: 6.1, z: -154, scale: 8.9, tex: nebulaB },
-    ],
-    [nebulaA, nebulaB],
-  );
-
-  useFrame((_, delta) => {
-    configs.forEach((config, index) => {
-      const group = groupRefs.current[index];
-      if (!group) {
-        return;
-      }
-
-      const offset = index * 0.12;
-      const localFlight = THREE.MathUtils.clamp((transit.galaxyFlight - offset) / 0.56, 0, 1);
-      group.visible = postVideoStage === 'jump' && (transit.galaxyFlight > offset * 0.4 || transit.destination > 0.01);
-      group.position.lerp(
-        new THREE.Vector3(
-          THREE.MathUtils.lerp(config.x, config.x * 0.15, localFlight),
-          THREE.MathUtils.lerp(config.y, config.y * 0.1, localFlight),
-          config.z + localFlight * 210,
-        ),
-        1 - Math.exp(-delta * 2.2),
-      );
-      group.rotation.z += delta * (0.06 + localFlight * 0.22);
-      group.scale.lerp(
-        new THREE.Vector3(
-          config.scale + localFlight * 4.6,
-          config.scale + localFlight * 4.6,
-          config.scale + localFlight * 4.6,
-        ),
-        1 - Math.exp(-delta * 2.2),
-      );
-    });
-  });
-
-  return (
-    <group>
-      {configs.map((config, index) => (
-        <group
-          key={`${config.x}-${config.z}`}
-          position={[config.x, config.y, config.z]}
-          ref={(node) => {
-            groupRefs.current[index] = node;
-          }}
-          scale={[config.scale, config.scale, config.scale]}
-        >
-          <mesh rotation={[-0.2, 0.08, index % 2 === 0 ? -0.5 : 0.34]} scale={[8.2, 4.8, 1]}>
-            <planeGeometry args={[1, 1, 1, 1]} />
-            <meshBasicMaterial
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              map={config.tex}
-              opacity={0.34}
-              transparent
-            />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-}
-
-function FinalMemoryGalaxy({ galaxyStage, jumpProgress }: Pick<PostVideoDestinyUniverseProps, 'galaxyStage' | 'jumpProgress'>) {
+function FinalMemoryGalaxy({ galaxyStage }: Pick<PostVideoDestinyUniverseProps, 'galaxyStage'>) {
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactDefinition | null>(null);
   const groupRef = useRef<THREE.Group | null>(null);
   const instancedRef = useRef<THREE.InstancedMesh | null>(null);
   const controlsRef = useRef<any>(null);
-  const transit = getPostVideoTransitState(jumpProgress);
   const nebulaWarm = useMemo(() => createNebulaTexture('rgba(255,205,146,0.72)', 'rgba(204,111,255,0.26)'), []);
   const nebulaCool = useMemo(() => createNebulaTexture('rgba(143,223,255,0.72)', 'rgba(98,127,255,0.24)'), []);
   const matrices = useMemo(() => buildDestinationMatrices(DESTINATION_STAR_COUNT), []);
@@ -347,7 +366,7 @@ function FinalMemoryGalaxy({ galaxyStage, jumpProgress }: Pick<PostVideoDestinyU
     ].filter((entry) => entry.artifact),
     [pulseArtifacts],
   );
-  const visible = galaxyStage === 'manifest' || transit.destination > 0.01;
+  const visible = galaxyStage === 'manifest';
 
   useEffect(() => {
     if (!instancedRef.current) {
@@ -369,7 +388,7 @@ function FinalMemoryGalaxy({ galaxyStage, jumpProgress }: Pick<PostVideoDestinyU
       return;
     }
 
-    const reveal = galaxyStage === 'manifest' ? 1 : transit.destination;
+    const reveal = galaxyStage === 'manifest' ? 1 : 0;
     groupRef.current.visible = visible;
     groupRef.current.rotation.y += delta * (0.018 + (1 - reveal) * 0.08);
     groupRef.current.rotation.x = Math.sin(clock.elapsedTime * 0.14) * 0.08;
@@ -478,8 +497,7 @@ export function PostVideoDestinyUniverse({
   return (
     <group renderOrder={9}>
       <PostVideoWarpTunnel jumpProgress={jumpProgress} postVideoStage={postVideoStage} />
-      <FlightGalaxies jumpProgress={jumpProgress} postVideoStage={postVideoStage} />
-      <FinalMemoryGalaxy galaxyStage={galaxyStage} jumpProgress={jumpProgress} />
+      <FinalMemoryGalaxy galaxyStage={galaxyStage} />
     </group>
   );
 }

@@ -115,6 +115,84 @@ input {
   z-index: 0;
 }
 
+.scene-layer--video-paused {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-preload-video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.scene-layer--singularity-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.interactive-galaxy-4d {
+  width: 100%;
+  height: 100%;
+}
+
+.singularity-flash-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: #ffffff;
+}
+
+.singularity-preload-video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.singularity-hyperjump {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+}
+
+.singularity-hyperjump__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.singularity-hyperjump__phrases {
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  right: max(18px, env(safe-area-inset-right));
+  top: max(14vh, calc(env(safe-area-inset-top) + 48px));
+  display: grid;
+  place-items: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.singularity-hyperjump__phrase {
+  margin: 0;
+  max-width: min(44rem, calc(100% - 2rem));
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1rem, 2.4vw, 1.55rem);
+  letter-spacing: 0.06em;
+  line-height: 1.55;
+  color: rgba(255, 252, 248, 0.96);
+  text-shadow:
+    0 0 22px rgba(0, 0, 0, 0.45),
+    0 0 48px rgba(40, 60, 120, 0.35);
+}
+
 .scene-layer canvas {
   width: 100% !important;
   height: 100% !important;
@@ -1398,6 +1476,14 @@ input {
   color: rgba(255, 255, 255, 0.76);
 }
 
+.special-star-overlay__video-player {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  background: #02050f;
+}
+
 .special-star-overlay__bridge {
   display: grid;
   gap: 0.35rem;
@@ -1609,22 +1695,18 @@ input {
   animation-duration: 1400ms;
 }
 
-.post-video-act__quote.gate-panel {
+.post-video-act__quote {
   position: relative;
   width: min(760px, calc(100vw - 24px));
   padding: 1rem 1.15rem;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
-    rgba(8, 10, 22, 0.42);
 }
 
-.post-video-act__quote--jump.gate-panel {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
-    linear-gradient(180deg, rgba(8, 10, 22, 0.2), rgba(8, 10, 22, 0.48));
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+.post-video-act__quote--jump {
+  max-width: min(880px, calc(100vw - 32px));
+  text-align: center;
+  text-shadow:
+    0 0 22px rgba(255, 255, 255, 0.2),
+    0 0 44px rgba(134, 165, 255, 0.2);
 }
 
 .memory-star-card.gate-panel {
@@ -1652,6 +1734,7 @@ input {
   color: rgba(255, 248, 239, 0.98);
   text-wrap: balance;
 }
+
 
 @keyframes driftNoise {
   from {
@@ -1708,6 +1791,16 @@ input {
     opacity: 0;
     filter: blur(2px);
     transform: translate(-50%, -50%) rotate(var(--warp-angle)) scaleY(1.9);
+  }
+}
+
+@keyframes postVideoFlashCut {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 
