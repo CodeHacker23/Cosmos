@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type MutableRefObject, useEffect, useRef, useState } from 'react';
 import { storyConfig } from '../../../content/storyConfig';
 import type { GalaxyPostVideoStage } from '../../experience/model/types';
 import { getPostVideoTransitState } from '../../../scene/postVideoTransit';
@@ -6,17 +6,17 @@ import { getPostVideoTransitState } from '../../../scene/postVideoTransit';
 interface PostVideoActPanelProps {
   stage: GalaxyPostVideoStage;
   phraseIndex: number;
-  jumpProgress: number;
+  jumpProgressRef: MutableRefObject<number>;
   onClose: () => void;
   onStartJump: () => void;
 }
 
-const HOLD_DURATION_MS = 1850;
+const HOLD_DURATION_MS = 2650;
 
 export function PostVideoActPanel({
   stage,
   phraseIndex,
-  jumpProgress,
+  jumpProgressRef,
   onClose,
   onStartJump,
 }: PostVideoActPanelProps) {
@@ -25,6 +25,8 @@ export function PostVideoActPanel({
   const holdStartedAtRef = useRef<number | null>(null);
   const holdFrameRef = useRef<number | null>(null);
   const jumpTriggeredRef = useRef(false);
+  const veilJumpRef = useRef<HTMLDivElement | null>(null);
+  const quoteJumpRef = useRef<HTMLParagraphElement | null>(null);
 
   useEffect(
     () => () => {
@@ -40,26 +42,43 @@ export function PostVideoActPanel({
     jumpTriggeredRef.current = false;
   }, [stage]);
 
-  const activeJumpLine = useMemo(() => {
+  /** Прыжок: без setState на каждый кадр — только ref + rAF (меньше лагов вместе с Canvas). */
+  useEffect(() => {
     if (stage !== 'jump') {
-      return null;
+      return;
     }
 
-    const transit = getPostVideoTransitState(jumpProgress);
+    let frameId = 0;
     const lines = copy.jumpLines;
-    if (transit.tunnel <= 0 || transit.galaxyFlight > 0) {
-      return null;
-    }
-    return lines[transit.phraseIndex] ?? null;
-  }, [copy.jumpLines, jumpProgress, stage]);
 
-  const jumpPhraseOpacity = useMemo(() => {
-    if (stage !== 'jump') {
-      return 0;
-    }
+    const tick = () => {
+      const p = jumpProgressRef.current;
+      const transit = getPostVideoTransitState(p);
 
-    return getPostVideoTransitState(jumpProgress).phraseVisibility;
-  }, [jumpProgress, stage]);
+      if (veilJumpRef.current) {
+        veilJumpRef.current.style.opacity = String(Math.max(0.12, 0.38 - p * 0.16));
+      }
+
+      const el = quoteJumpRef.current;
+      if (!el) {
+        frameId = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      if (transit.phraseVisibility < 0.04) {
+        el.textContent = '';
+        el.style.opacity = '0';
+      } else {
+        el.textContent = lines[transit.phraseIndex] ?? '';
+        el.style.opacity = String(transit.phraseVisibility);
+      }
+
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [copy.jumpLines, jumpProgressRef, stage]);
 
   const startHold = () => {
     if (stage !== 'preface') {
@@ -107,17 +126,13 @@ export function PostVideoActPanel({
       <section className="post-video-act post-video-act--jump" aria-live="polite">
         <div
           className="post-video-act__veil post-video-act__veil--jump"
-          style={{ opacity: Math.max(0.12, 0.38 - jumpProgress * 0.16) }}
+          ref={veilJumpRef}
+          style={{ opacity: 0.38 }}
         />
         <div className="post-video-act__jump-shell">
-          {activeJumpLine && jumpPhraseOpacity > 0.05 && (
-            <div
-              className="post-video-act__quote post-video-act__quote--jump"
-              style={{ opacity: jumpPhraseOpacity }}
-            >
-              <p>{activeJumpLine}</p>
-            </div>
-          )}
+          <div className="post-video-act__quote post-video-act__quote--jump">
+            <p ref={quoteJumpRef} />
+          </div>
         </div>
       </section>
     );

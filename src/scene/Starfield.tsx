@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { type MutableRefObject, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type {
   CalibrationAssessment,
@@ -18,7 +18,7 @@ interface StarfieldProps {
   beats: IntroBeats;
   phase: ExperiencePhase;
   postVideoStage: GalaxyPostVideoStage;
-  jumpProgress: number;
+  jumpProgressRef: MutableRefObject<number>;
   singularityProgress: number;
   sliders: SliderState;
   assessment: CalibrationAssessment;
@@ -61,7 +61,7 @@ export function Starfield({
   beats,
   phase,
   postVideoStage,
-  jumpProgress,
+  jumpProgressRef,
   singularityProgress: _singularityProgress,
   sliders,
   assessment,
@@ -175,6 +175,7 @@ export function Starfield({
       0.01,
     );
 
+    const jumpProgress = jumpProgressRef.current;
     const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
     const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
     const jumpTransit = isPostVideoJump ? getPostVideoTransitState(jumpProgress) : null;

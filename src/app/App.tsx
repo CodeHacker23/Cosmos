@@ -142,6 +142,7 @@ export default function App() {
           galaxySignals={storyConfig.galaxy.signals}
           galaxyStage={galaxySearchProgress.stage}
           jumpProgress={galaxySearchProgress.jumpProgress}
+          jumpProgressRef={galaxySearchProgress.jumpProgressRef}
           linkedSignalIds={galaxySearchProgress.linkedSignalIds}
           onConnectGalaxySignal={connectGalaxySignal}
           onOpenSpecialStar={openSpecialStarArtifact}
@@ -218,7 +219,7 @@ export default function App() {
 
       {phase === 'galaxy' && galaxySearchProgress.postVideoStage !== 'idle' && (
           <PostVideoActPanel
-            jumpProgress={galaxySearchProgress.jumpProgress}
+            jumpProgressRef={galaxySearchProgress.jumpProgressRef}
             onClose={returnToSpecialStarVideo}
             onStartJump={beginPostVideoJump}
             phraseIndex={galaxySearchProgress.postVideoPhraseIndex}

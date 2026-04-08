@@ -82,6 +82,8 @@ export function useExperienceController() {
   const [postVideoStage, setPostVideoStage] = useState<GalaxyPostVideoStage>('idle');
   const [postVideoPhraseIndex, setPostVideoPhraseIndex] = useState(0);
   const [jumpProgress, setJumpProgress] = useState(0);
+  const jumpProgressRef = useRef(0);
+  const jumpProgressThrottleRef = useRef(0);
   const [starbirthProgress, setStarbirthProgress] = useState(0);
   const [specialStarOpened, setSpecialStarOpened] = useState(false);
   const [specialStarViewed, setSpecialStarViewed] = useState(false);
@@ -120,6 +122,7 @@ export function useExperienceController() {
       postVideoStage,
       postVideoPhraseIndex,
       jumpProgress,
+      jumpProgressRef,
       foundSignalIds,
       revealedArtifactId,
       introState: galaxyIntroState,
@@ -276,6 +279,7 @@ export function useExperienceController() {
       setWeaveFailureState(idleWeaveFailureState);
       setPostVideoStage('idle');
       setPostVideoPhraseIndex(0);
+      jumpProgressRef.current = 0;
       setJumpProgress(0);
       setStarbirthProgress(0);
       setSpecialStarOpened(false);
@@ -372,7 +376,7 @@ export function useExperienceController() {
     postVideoPhraseTimeoutRef.current = window.setTimeout(() => {
       setPostVideoPhraseIndex((current) => Math.min(current + 1, prefaceLines.length - 1));
       postVideoPhraseTimeoutRef.current = null;
-    }, 3600);
+    }, 5400);
 
     return () => {
       if (postVideoPhraseTimeoutRef.current !== null) {
@@ -384,6 +388,7 @@ export function useExperienceController() {
 
   useEffect(() => {
     if (phase !== 'galaxy' || postVideoStage !== 'jump') {
+      jumpProgressRef.current = 0;
       setJumpProgress(0);
       postVideoJumpTimelineRef.current?.kill();
       postVideoJumpTimelineRef.current = null;
@@ -391,14 +396,32 @@ export function useExperienceController() {
     }
 
     postVideoJumpTimelineRef.current?.kill();
+    jumpProgressRef.current = 0;
+    setJumpProgress(0);
+    jumpProgressThrottleRef.current = 0;
     const progressState = { value: 0 };
+
+    /** Реже дергаем React — постобработка и слои; плавность в сцене через jumpProgressRef в useFrame. */
+    const throttleReactMs = 48;
 
     postVideoJumpTimelineRef.current = gsap.timeline();
     postVideoJumpTimelineRef.current.to(progressState, {
       value: 1,
       duration: POST_VIDEO_JUMP_SECONDS,
-      ease: 'sine.inOut',
-      onUpdate: () => setJumpProgress(progressState.value),
+      ease: 'none',
+      onUpdate: () => {
+        const next = progressState.value;
+        jumpProgressRef.current = next;
+        const now = performance.now();
+        if (now - jumpProgressThrottleRef.current >= throttleReactMs) {
+          jumpProgressThrottleRef.current = now;
+          setJumpProgress(next);
+        }
+      },
+      onComplete: () => {
+        jumpProgressRef.current = 1;
+        setJumpProgress(1);
+      },
     });
 
     return () => {
@@ -421,6 +444,7 @@ export function useExperienceController() {
       setSpecialStarOpened(false);
       setPostVideoStage('idle');
       setPostVideoPhraseIndex(0);
+      jumpProgressRef.current = 0;
       setJumpProgress(0);
       setGalaxyStage('newspace');
       postVideoJumpTimeoutRef.current = null;
@@ -733,6 +757,7 @@ export function useExperienceController() {
 
     setPostVideoStage('idle');
     setPostVideoPhraseIndex(0);
+    jumpProgressRef.current = 0;
     setJumpProgress(0);
     setSpecialStarOpened(false);
   }, [galaxyStage, phase]);
@@ -744,6 +769,7 @@ export function useExperienceController() {
 
     setPostVideoStage('idle');
     setPostVideoPhraseIndex(0);
+    jumpProgressRef.current = 0;
     setJumpProgress(0);
     setSpecialStarOpened(true);
   }, [galaxyStage, phase]);

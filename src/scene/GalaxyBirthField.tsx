@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { type MutableRefObject, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type {
   ExperiencePhase,
@@ -12,7 +12,7 @@ interface GalaxyBirthFieldProps {
   phase: ExperiencePhase;
   galaxyStage: GalaxyStage;
   postVideoStage: GalaxyPostVideoStage;
-  jumpProgress: number;
+  jumpProgressRef: MutableRefObject<number>;
   starbirthProgress: number;
   singularityProgress: number;
 }
@@ -125,7 +125,7 @@ export function GalaxyBirthField({
   phase,
   galaxyStage,
   postVideoStage,
-  jumpProgress,
+  jumpProgressRef,
   starbirthProgress,
   singularityProgress,
 }: GalaxyBirthFieldProps) {
@@ -189,6 +189,7 @@ export function GalaxyBirthField({
   );
 
   useFrame((_, delta) => {
+    const jumpProgress = jumpProgressRef.current;
     const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
     const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
     const transit = isPostVideoJump ? getPostVideoTransitState(jumpProgress) : null;

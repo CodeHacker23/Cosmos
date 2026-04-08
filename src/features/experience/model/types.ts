@@ -1,3 +1,5 @@
+import type { MutableRefObject } from 'react';
+
 export type ExperiencePhase =
   | 'terminal'
   | 'calibration'
@@ -75,6 +77,8 @@ export interface GalaxySearchProgress {
   postVideoStage: GalaxyPostVideoStage;
   postVideoPhraseIndex: number;
   jumpProgress: number;
+  /** Обновляется каждый кадр GSAP — для useFrame без React re-render на каждый кадр. */
+  jumpProgressRef: MutableRefObject<number>;
   foundSignalIds: string[];
   revealedArtifactId: string | null;
   introState: GalaxySearchIntroState;

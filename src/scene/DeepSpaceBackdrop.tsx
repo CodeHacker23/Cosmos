@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { type MutableRefObject, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type {
   ExperiencePhase,
@@ -216,7 +216,7 @@ interface DeepSpaceBackdropProps {
   singularityProgress: number;
   galaxyStage: GalaxyStage;
   postVideoStage: GalaxyPostVideoStage;
-  jumpProgress: number;
+  jumpProgressRef: MutableRefObject<number>;
 }
 
 export function DeepSpaceBackdrop({
@@ -225,7 +225,7 @@ export function DeepSpaceBackdrop({
   singularityProgress,
   galaxyStage,
   postVideoStage,
-  jumpProgress,
+  jumpProgressRef,
 }: DeepSpaceBackdropProps) {
   const backdropGroupRef = useRef<THREE.Group | null>(null);
   const starPointsRef =
@@ -306,6 +306,7 @@ export function DeepSpaceBackdrop({
   const mistUniforms = useMemo(() => ({ uTime: { value: 0 }, uOpacity: { value: 0 } }), []);
 
   useFrame((state, delta) => {
+    const jumpProgress = jumpProgressRef.current;
     const time = state.clock.elapsedTime;
     const blastWindow =
       phase === 'singularity'

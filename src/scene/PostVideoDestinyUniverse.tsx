@@ -1,7 +1,7 @@
 import { Html, OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { gsap } from 'gsap';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type MutableRefObject, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { storyConfig } from '../content/storyConfig';
 import type { ArtifactDefinition, GalaxyPostVideoStage, GalaxyStage } from '../features/experience/model/types';
@@ -14,11 +14,10 @@ import {
 interface PostVideoDestinyUniverseProps {
   galaxyStage: GalaxyStage;
   postVideoStage: GalaxyPostVideoStage;
-  jumpProgress: number;
+  jumpProgressRef: MutableRefObject<number>;
+  tunnelInstanceCount: number;
+  destinationStarCount: number;
 }
-
-const TUNNEL_INSTANCE_COUNT = 27500;
-const DESTINATION_STAR_COUNT = 110000;
 
 const tunnelVertexShader = `
 uniform float uTime;
@@ -117,9 +116,8 @@ varying float vSeed;
 varying vec2 vUv;
 
 void main() {
-  if (vSeed > uVisibleSeedMax + 0.0005) {
-    discard;
-  }
+  /* Без discard — на многих GPU он даёт рваный тайлинг и микрофризы при тысячах квадов. */
+  float seedGate = 1.0 - smoothstep(uVisibleSeedMax - 0.004, uVisibleSeedMax + 0.006, vSeed);
 
   float beam = smoothstep(0.5, 0.16, abs(vUv.x - 0.5));
   float tip = smoothstep(1.0, 0.05, vUv.y);
@@ -132,7 +130,7 @@ void main() {
   vec3 col = mix(vec3(1.0, 0.97, 1.0), vec3(0.55, 0.82, 1.0), 0.55);
   col = mix(col, vec3(0.95, 0.75, 1.0), 0.22);
 
-  float a = clamp(lineCore * vAlpha * 3.05 * hole, 0.0, 1.0);
+  float a = clamp(lineCore * vAlpha * 3.05 * hole * seedGate, 0.0, 1.0);
   gl_FragColor = vec4(col * 2.85, min(1.0, a * 1.12));
 }
 `;
@@ -199,17 +197,17 @@ function buildDestinationMatrices(count: number) {
   return matrices;
 }
 
-function buildTunnelGeometry() {
+function buildTunnelGeometry(instanceCount: number) {
   const base = new THREE.PlaneGeometry(1, 1, 1, 1);
   base.translate(0, 0.5, 0);
-  const seeds = new Float32Array(TUNNEL_INSTANCE_COUNT);
-  const angles = new Float32Array(TUNNEL_INSTANCE_COUNT);
-  const radii = new Float32Array(TUNNEL_INSTANCE_COUNT);
-  const depths = new Float32Array(TUNNEL_INSTANCE_COUNT);
-  const velocities = new Float32Array(TUNNEL_INSTANCE_COUNT);
-  const thickness = new Float32Array(TUNNEL_INSTANCE_COUNT);
+  const seeds = new Float32Array(instanceCount);
+  const angles = new Float32Array(instanceCount);
+  const radii = new Float32Array(instanceCount);
+  const depths = new Float32Array(instanceCount);
+  const velocities = new Float32Array(instanceCount);
+  const thickness = new Float32Array(instanceCount);
 
-  for (let index = 0; index < TUNNEL_INSTANCE_COUNT; index += 1) {
+  for (let index = 0; index < instanceCount; index += 1) {
     seeds[index] = Math.random();
     angles[index] = Math.random() * Math.PI * 2;
     radii[index] = 0.18 + Math.pow(Math.random(), 0.58) * 56.0;
@@ -230,14 +228,21 @@ function buildTunnelGeometry() {
 
 function PostVideoWarpTunnel({
   postVideoStage,
-  jumpProgress,
-}: Pick<PostVideoDestinyUniverseProps, 'postVideoStage' | 'jumpProgress'>) {
+  jumpProgressRef,
+  tunnelInstanceCount,
+}: Pick<PostVideoDestinyUniverseProps, 'postVideoStage' | 'jumpProgressRef' | 'tunnelInstanceCount'>) {
   const { camera } = useThree();
   const meshRef = useRef<THREE.InstancedMesh | null>(null);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const velocityTweenRef = useRef<gsap.core.Tween | null>(null);
   const viewDirScratch = useRef(new THREE.Vector3(0, 0, -1));
-  const geometry = useMemo(() => buildTunnelGeometry(), []);
+  const geometry = useMemo(() => buildTunnelGeometry(tunnelInstanceCount), [tunnelInstanceCount]);
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+    };
+  }, [geometry]);
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
@@ -261,11 +266,11 @@ function PostVideoWarpTunnel({
     }
 
     const identity = new THREE.Matrix4();
-    for (let index = 0; index < TUNNEL_INSTANCE_COUNT; index += 1) {
+    for (let index = 0; index < tunnelInstanceCount; index += 1) {
       meshRef.current.setMatrixAt(index, identity);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
-  }, []);
+  }, [tunnelInstanceCount]);
 
   useEffect(() => {
     velocityTweenRef.current?.kill();
@@ -297,7 +302,7 @@ function PostVideoWarpTunnel({
       return;
     }
 
-    const transit = getPostVideoTransitState(jumpProgress);
+    const transit = getPostVideoTransitState(jumpProgressRef.current);
     materialRef.current.uniforms.uTime.value += delta;
     materialRef.current.uniforms.uApproach.value = transit.coreApproach;
     materialRef.current.uniforms.uTunnel.value = transit.tunnel;
@@ -317,8 +322,13 @@ function PostVideoWarpTunnel({
     const { coreApproach, tunnel, galaxyFlight, destination } = transit;
     const crawlIn = THREE.MathUtils.smootherstep(coreApproach, 0.05, 0.96);
     const tunnelCresc = Math.pow(THREE.MathUtils.smootherstep(tunnel, 0.02, 0.99), 0.88);
+    const flightSurge = THREE.MathUtils.smootherstep(galaxyFlight, 0.1, 1);
     const lineGate = THREE.MathUtils.clamp(
-      crawlIn * 0.45 + tunnel * 0.94 + galaxyFlight * 0.97 + destination * 0.78,
+      crawlIn * 0.45 +
+        tunnel * 0.94 +
+        galaxyFlight * 0.97 +
+        destination * 0.78 +
+        flightSurge * 0.16,
       0,
       1,
     );
@@ -327,10 +337,11 @@ function PostVideoWarpTunnel({
     const densityCrawl = THREE.MathUtils.smootherstep(coreApproach, 0.03, 0.92);
     const tunnelDensity =
       tunnelCresc * 0.52 + tunnel * 0.38 + Math.pow(THREE.MathUtils.smootherstep(tunnel, 0.15, 0.95), 1.35) * 0.12;
+    const flightDensity = galaxyFlight * 0.52 + Math.pow(flightSurge, 1.15) * 0.3;
     const seedMax = THREE.MathUtils.clamp(
-      0.05 + densityCrawl * 0.28 + tunnelDensity + galaxyFlight * 0.42 + destination * 0.24,
+      0.05 + densityCrawl * 0.28 + tunnelDensity + flightDensity + destination * 0.3,
       0.04,
-      0.84,
+      0.94,
     );
     materialRef.current.uniforms.uVisibleSeedMax.value = seedMax;
 
@@ -339,8 +350,9 @@ function PostVideoWarpTunnel({
 
   return (
     <instancedMesh
-      args={[geometry, undefined, TUNNEL_INSTANCE_COUNT]}
+      args={[geometry, undefined, tunnelInstanceCount]}
       frustumCulled={false}
+      key={tunnelInstanceCount}
       ref={meshRef}
       renderOrder={20}
     >
@@ -360,14 +372,17 @@ function PostVideoWarpTunnel({
   );
 }
 
-function FinalMemoryGalaxy({ galaxyStage }: Pick<PostVideoDestinyUniverseProps, 'galaxyStage'>) {
+function FinalMemoryGalaxy({
+  galaxyStage,
+  destinationStarCount,
+}: Pick<PostVideoDestinyUniverseProps, 'galaxyStage' | 'destinationStarCount'>) {
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactDefinition | null>(null);
   const groupRef = useRef<THREE.Group | null>(null);
   const instancedRef = useRef<THREE.InstancedMesh | null>(null);
   const controlsRef = useRef<any>(null);
   const nebulaWarm = useMemo(() => createNebulaTexture('rgba(255,205,146,0.72)', 'rgba(204,111,255,0.26)'), []);
   const nebulaCool = useMemo(() => createNebulaTexture('rgba(143,223,255,0.72)', 'rgba(98,127,255,0.24)'), []);
-  const matrices = useMemo(() => buildDestinationMatrices(DESTINATION_STAR_COUNT), []);
+  const matrices = useMemo(() => buildDestinationMatrices(destinationStarCount), [destinationStarCount]);
   const pulseArtifacts = storyConfig.galaxy.postVideo.stars.filter((star) => star.id !== 'reset-point');
   const pulseStars = useMemo(
     () => [
@@ -448,7 +463,11 @@ function FinalMemoryGalaxy({ galaxyStage }: Pick<PostVideoDestinyUniverseProps, 
           transparent
         />
       </mesh>
-      <instancedMesh args={[new THREE.PlaneGeometry(1, 1, 1, 1), undefined, DESTINATION_STAR_COUNT]} ref={instancedRef}>
+      <instancedMesh
+        args={[new THREE.PlaneGeometry(1, 1, 1, 1), undefined, destinationStarCount]}
+        key={destinationStarCount}
+        ref={instancedRef}
+      >
         <meshBasicMaterial blending={THREE.AdditiveBlending} depthWrite={false} transparent vertexColors />
       </instancedMesh>
       {pulseStars.map(({ artifact, position, color }) => (
@@ -504,12 +523,18 @@ function FinalMemoryGalaxy({ galaxyStage }: Pick<PostVideoDestinyUniverseProps, 
 export function PostVideoDestinyUniverse({
   galaxyStage,
   postVideoStage,
-  jumpProgress,
+  jumpProgressRef,
+  tunnelInstanceCount,
+  destinationStarCount,
 }: PostVideoDestinyUniverseProps) {
   return (
     <group renderOrder={9}>
-      <PostVideoWarpTunnel jumpProgress={jumpProgress} postVideoStage={postVideoStage} />
-      <FinalMemoryGalaxy galaxyStage={galaxyStage} />
+      <PostVideoWarpTunnel
+        jumpProgressRef={jumpProgressRef}
+        postVideoStage={postVideoStage}
+        tunnelInstanceCount={tunnelInstanceCount}
+      />
+      <FinalMemoryGalaxy destinationStarCount={destinationStarCount} galaxyStage={galaxyStage} />
     </group>
   );
 }
