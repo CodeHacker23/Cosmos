@@ -1,7 +1,12 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { ExperiencePhase, GalaxyPostVideoStage, IntroBeats } from '../features/experience/model/types';
+import type {
+  ExperiencePhase,
+  GalaxyPostVideoStage,
+  GalaxyStage,
+  IntroBeats,
+} from '../features/experience/model/types';
 import { getPostVideoTransitState } from './postVideoTransit';
 
 const backgroundVertexShader = `
@@ -209,6 +214,7 @@ interface DeepSpaceBackdropProps {
   beats: IntroBeats;
   phase: ExperiencePhase;
   singularityProgress: number;
+  galaxyStage: GalaxyStage;
   postVideoStage: GalaxyPostVideoStage;
   jumpProgress: number;
 }
@@ -217,6 +223,7 @@ export function DeepSpaceBackdrop({
   beats,
   phase,
   singularityProgress,
+  galaxyStage,
   postVideoStage,
   jumpProgress,
 }: DeepSpaceBackdropProps) {
@@ -306,6 +313,8 @@ export function DeepSpaceBackdrop({
         : 0;
     const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
     const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
+    const hideNebulaBlobs =
+      phase === 'galaxy' && (galaxyStage === 'artifact' || postVideoStage === 'jump');
     const jumpTransit = isPostVideoJump ? getPostVideoTransitState(jumpProgress) : null;
     const tunnelKill =
       jumpTransit !== null ? 1 - THREE.MathUtils.smootherstep(jumpTransit.tunnel, 0, 0.2) : 1;
@@ -368,38 +377,42 @@ export function DeepSpaceBackdrop({
 
     if (warmNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.85 + Math.sin(time * 0.35) * 0.15;
-      warmNebulaRef.current.material.opacity =
-        (beats.nebulaRevealBeat.progress * 0.12 * pulse * (1 - blastWindow * 0.45) +
-        (isPostVideoPreface ? 0.035 : 0) +
-        jumpDive * 0.05) *
-        sceneFade;
+      warmNebulaRef.current.material.opacity = hideNebulaBlobs
+        ? 0
+        : (beats.nebulaRevealBeat.progress * 0.12 * pulse * (1 - blastWindow * 0.45) +
+            (isPostVideoPreface ? 0.035 : 0) +
+            jumpDive * 0.05) *
+          sceneFade;
     }
 
     if (coolNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.86 + Math.sin(time * 0.32 + 0.8) * 0.14;
-      coolNebulaRef.current.material.opacity =
-        (beats.nebulaRevealBeat.progress * 0.11 * pulse * (1 - blastWindow * 0.45) +
-        (isPostVideoPreface ? 0.032 : 0) +
-        jumpDive * 0.045) *
-        sceneFade;
+      coolNebulaRef.current.material.opacity = hideNebulaBlobs
+        ? 0
+        : (beats.nebulaRevealBeat.progress * 0.11 * pulse * (1 - blastWindow * 0.45) +
+            (isPostVideoPreface ? 0.032 : 0) +
+            jumpDive * 0.045) *
+          sceneFade;
     }
 
     if (milkyWayRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.92 + Math.sin(time * 0.18 + 0.6) * 0.08;
-      milkyWayRef.current.material.opacity =
-        (beats.nebulaRevealBeat.progress * 0.16 * pulse * (1 - blastWindow * 0.3) + jumpDive * 0.08) *
-        (1 - jumpTraverse * 0.78) *
-        sceneFade;
+      milkyWayRef.current.material.opacity = hideNebulaBlobs
+        ? 0
+        : (beats.nebulaRevealBeat.progress * 0.16 * pulse * (1 - blastWindow * 0.3) + jumpDive * 0.08) *
+          (1 - jumpTraverse * 0.78) *
+          sceneFade;
       milkyWayRef.current.rotation.z = -0.36 + jumpDive * 0.22;
     }
 
     if (accentNebulaRef.current?.material instanceof THREE.MeshBasicMaterial) {
       const pulse = 0.88 + Math.sin(time * 0.28 + 1.8) * 0.12;
-      accentNebulaRef.current.material.opacity =
-        (beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75) +
-        jumpIgnition * 0.07 +
-        jumpAfterglow * 0.04) *
-        sceneFade;
+      accentNebulaRef.current.material.opacity = hideNebulaBlobs
+        ? 0
+        : (beats.nebulaRevealBeat.progress * 0.075 * pulse * (1 - blastWindow * 0.75) +
+            jumpIgnition * 0.07 +
+            jumpAfterglow * 0.04) *
+          sceneFade;
     }
 
     if (galaxyMistRef.current) {
@@ -410,14 +423,16 @@ export function DeepSpaceBackdrop({
         material.uniforms.uTime.value += delta;
         material.uniforms.uOpacity.value = THREE.MathUtils.lerp(
           material.uniforms.uOpacity.value,
-          phase === 'galaxy'
-            ? isPostVideoJump
-              ? 0.16 + jumpIgnition * 0.1 - jumpAfterglow * 0.05
-              : isPostVideoPreface
-                ? 0.11
-                : 0.065
-            : 0,
-          0.03,
+          hideNebulaBlobs
+            ? 0
+            : phase === 'galaxy'
+              ? isPostVideoJump
+                ? 0.16 + jumpIgnition * 0.1 - jumpAfterglow * 0.05
+                : isPostVideoPreface
+                  ? 0.11
+                  : 0.065
+              : 0,
+          hideNebulaBlobs ? 0.12 : 0.03,
         );
         material.uniforms.uOpacity.value *= sceneFade;
       }

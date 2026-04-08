@@ -139,11 +139,15 @@ function CameraRig({
     const warpPull = isPostVideoJump ? postVideoTransit.tunnel : 0;
     const flightPull = isPostVideoJump ? postVideoTransit.galaxyFlight : 0;
     const warpAfterglow = isPostVideoJump ? postVideoTransit.destination : 0;
+    const coreEase = isPostVideoJump ? THREE.MathUtils.smootherstep(coreDive, 0.03, 0.995) : 0;
+    const tunnelEase = isPostVideoJump ? THREE.MathUtils.smootherstep(warpPull, 0.04, 0.98) : 0;
+    const flightEase = isPostVideoJump ? THREE.MathUtils.smootherstep(flightPull, 0.04, 0.98) : 0;
+    const destEase = isPostVideoJump ? THREE.MathUtils.smootherstep(warpAfterglow, 0.05, 0.95) : 0;
     const shake =
       isSingularity
         ? transit.acceleration * 0.08 + transit.jump * 0.38 + transit.flash * 0.22 + transit.flight * 0.06
         : isPostVideoJump
-          ? coreDive * 0.02 + warpPull * 0.06 + flightPull * 0.035
+          ? coreEase * 0.018 + tunnelEase * 0.05 + flightEase * 0.032
           : 0;
     const time = state.clock.elapsedTime;
     const motionX = orientationEnabled ? motionTarget.current.x : pointerX;
@@ -180,7 +184,7 @@ function CameraRig({
             : isPostVideoPreface
               ? 13.75 + Math.sin(time * 0.22) * 0.08
               : isPostVideoJump
-                ? 14.2 - coreDive * 4.6 - warpPull * 2.1 - flightPull * 4.4
+                ? 14.2 - coreEase * 4.6 - tunnelEase * 2.1 - flightEase * 4.4
                 : 14.5;
 
     const noiseTime = time * (2.4 + transit.jump * 9.5 + transit.flash * 18.0);
@@ -198,25 +202,26 @@ function CameraRig({
       isSingularity
         ? perlinY * shake * 0.68
         : isPostVideoJump
-          ? Math.cos(time * 14) * shake * 0.16 +
-            Math.sin(time * 21 + 1.7) * shake * 0.05
+          ? Math.cos(time * 9.2) * shake * 0.12 + Math.sin(time * 14.1 + 1.7) * shake * 0.04
         : 0;
 
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, delta * 1.4);
-    camera.position.x = THREE.MathUtils.lerp(
+    const camDamp = (current: number, target: number, lambda: number) =>
+      THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * delta));
+    camera.position.z = camDamp(camera.position.z, targetZ, isPostVideoJump ? 2.05 : 1.4);
+    camera.position.x = camDamp(
       camera.position.x,
       targetY * (isSingularity ? 0.42 : isPostVideoJump ? 0.78 : isPostVideoPreface ? 1.6 : 3.2) +
         shakeX,
-      delta * (isSingularity ? 3.2 : isPostVideoJump ? 2.4 : 1.8),
+      isSingularity ? 3.2 : isPostVideoJump ? 1.85 : 1.8,
     );
-    camera.position.y = THREE.MathUtils.lerp(
+    camera.position.y = camDamp(
       camera.position.y,
       targetX * (isSingularity ? 0.36 : isPostVideoJump ? 0.62 : isPostVideoPreface ? 1.3 : 2.4) +
         (phase === 'galaxy' && !isPostVideoJump ? 0.55 : 0) -
-        coreDive * 0.16 -
-        flightPull * 0.1 +
+        coreEase * 0.16 -
+        flightEase * 0.1 +
         shakeY,
-      delta * (isSingularity ? 3.2 : isPostVideoJump ? 2.4 : 1.8),
+      isSingularity ? 3.2 : isPostVideoJump ? 1.85 : 1.8,
     );
 
     lookAtTarget.current.set(
@@ -228,18 +233,18 @@ function CameraRig({
           : 0) -
         (isPostVideoPreface ? 1.8 : 0) -
         (isPostVideoJump
-          ? coreDive * 3.8 + warpPull * 5.2 + flightPull * 9 + warpAfterglow * 3
+          ? coreEase * 3.8 + tunnelEase * 5.2 + flightEase * 9 + destEase * 3
           : 0),
     );
     camera.lookAt(lookAtTarget.current);
-    perspectiveCamera.fov = THREE.MathUtils.lerp(
+    perspectiveCamera.fov = camDamp(
       perspectiveCamera.fov,
       isPostVideoJump
-        ? 40 + coreDive * 3 + warpPull * 14 + flightPull * 18
+        ? 40 + coreEase * 3 + tunnelEase * 14 + flightEase * 18
         : isPostVideoPreface
           ? 44
           : 42,
-      delta * 2.4,
+      isPostVideoJump ? 1.65 : 2.4,
     );
     perspectiveCamera.updateProjectionMatrix();
   });
@@ -272,15 +277,19 @@ function ExposureRig({
           transit.flash * 1.05 +
           transit.flight * 0.18
         : isJumping
-          ? 0.74 +
-            postTransit.coreApproach * 0.06 +
-            postTransit.tunnel * 0.14 -
-            postTransit.galaxyFlight * 0.05
+          ? 0.8 +
+            postTransit.coreApproach * 0.07 +
+            postTransit.tunnel * 0.17 -
+            postTransit.galaxyFlight * 0.04
         : phase === 'galaxy'
           ? 1.08
           : 0.95;
 
-    gl.toneMappingExposure = THREE.MathUtils.lerp(gl.toneMappingExposure, targetExposure, delta * 3.4);
+    gl.toneMappingExposure = THREE.MathUtils.lerp(
+      gl.toneMappingExposure,
+      targetExposure,
+      delta * (isJumping ? 2.15 : 3.4),
+    );
   });
 
   return null;
@@ -531,10 +540,10 @@ export function CosmicScene({
         getSingularityTransitState(singularityProgress).flight * 0.5
       : phase === 'galaxy'
         ? (postVideoStage === 'jump'
-            ? 0.22 +
-              postVideoTransit.tunnel * 0.38 +
-              postVideoTransit.galaxyFlight * 0.28 +
-              postVideoTransit.destination * 0.12
+            ? 0.28 +
+              postVideoTransit.tunnel * 0.48 +
+              postVideoTransit.galaxyFlight * 0.34 +
+              postVideoTransit.destination * 0.16
             : galaxyStage === 'newspace'
               ? 0.42
             : galaxyStage === 'manifest'
@@ -590,6 +599,7 @@ export function CosmicScene({
       {showGalaxyWorldLayer && (
         <DeepSpaceBackdrop
           beats={beats}
+          galaxyStage={galaxyStage}
           jumpProgress={jumpProgress}
           phase={phase}
           postVideoStage={postVideoStage}
@@ -725,7 +735,17 @@ export function CosmicScene({
                 : 0.008
           }
         />
-        <Vignette darkness={phase === 'singularity' ? 0.68 : 0.82} eskil={false} offset={0.2} />
+        <Vignette
+          darkness={
+            phase === 'singularity'
+              ? 0.68
+              : phase === 'galaxy' && postVideoStage === 'jump'
+                ? 0.72
+                : 0.82
+          }
+          eskil={false}
+          offset={0.2}
+        />
       </EffectComposer>
     </Canvas>
   );

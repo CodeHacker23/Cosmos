@@ -24,6 +24,7 @@ uniform float uTime;
 uniform float uBirth;
 uniform float uFlash;
 uniform float uRitualPulse;
+uniform float uMuteSpiralRings;
 
 attribute vec3 aOrigin;
 attribute float aScale;
@@ -47,7 +48,7 @@ void main() {
   float radiusNorm = clamp(length(target.xy) / 12.4, 0.0, 1.0);
   float pulsePrimary = smoothstep(0.08, 0.0, abs(radiusNorm - uRitualPulse));
   float pulseTrail = smoothstep(0.11, 0.0, abs(radiusNorm - max(0.0, uRitualPulse - 0.08)));
-  float ritualBand = max(pulsePrimary, pulseTrail * 0.42);
+  float ritualBand = max(pulsePrimary, pulseTrail * 0.42) * (1.0 - uMuteSpiralRings);
   float centerTaper = mix(0.68, 1.0, smoothstep(0.0, 0.42, radiusNorm));
 
   vec3 displaced = mix(origin, target, birth);
@@ -65,13 +66,19 @@ void main() {
   gl_PointSize = size * mix(0.2, 1.0, birth);
 
   vTint = aTint;
-  vAlpha = clamp((0.14 + aScale * 0.48 + birth * 0.34 + uFlash * 0.06 + ritualBand * 0.08), 0.0, 1.0);
+  vAlpha = clamp(
+    (0.14 + aScale * 0.48 + birth * 0.34 + uFlash * 0.06 + ritualBand * 0.08) * (1.0 - uMuteSpiralRings * 0.35),
+    0.0,
+    1.0
+  );
   vRadius = radiusNorm;
   vPulse = ritualBand;
 }
 `;
 
 const galaxyFragmentShader = `
+uniform float uMuteSpiralRings;
+
 varying vec3 vTint;
 varying float vAlpha;
 varying float vRadius;
@@ -87,14 +94,16 @@ void main() {
 
   float core = smoothstep(0.06, 0.0, dist);
   float halo = smoothstep(0.34, 0.02, dist);
-  float alpha = clamp(core * 1.74 + halo * 0.12, 0.0, 1.0) * vAlpha;
-  vec3 color = vTint * (1.2 + core * 2.34 + halo * 0.1);
+  float haloVis = halo * (1.0 - uMuteSpiralRings * 0.92);
+  float alpha = clamp(core * 1.74 + haloVis * 0.12, 0.0, 1.0) * vAlpha;
+  vec3 color = vTint * (1.2 + core * 2.34 + haloVis * 0.1);
   vec3 luxeViolet = vec3(0.9, 0.64, 1.0);
   vec3 luxeGold = vec3(1.0, 0.8, 0.4);
   float angleMix = 0.5 + sin(vRadius * 18.0) * 0.08;
   vec3 luxeMix = mix(luxeViolet, luxeGold, smoothstep(0.08, 0.96, vRadius) + angleMix);
-  color = mix(color, luxeMix * (1.08 + core * 0.5 + halo * 0.12), vPulse * 0.34);
-  alpha = clamp(alpha + vPulse * 0.08, 0.0, 1.0);
+  float pulseMix = vPulse * 0.34 * (1.0 - uMuteSpiralRings);
+  color = mix(color, luxeMix * (1.08 + core * 0.5 + haloVis * 0.12), pulseMix);
+  alpha = clamp(alpha + vPulse * 0.08 * (1.0 - uMuteSpiralRings), 0.0, 1.0);
 
   gl_FragColor = vec4(color, alpha);
 }
@@ -174,6 +183,7 @@ export function GalaxyBirthField({
       uBirth: { value: 0 },
       uFlash: { value: 0 },
       uRitualPulse: { value: 0 },
+      uMuteSpiralRings: { value: 0 },
     }),
     [],
   );
@@ -182,7 +192,7 @@ export function GalaxyBirthField({
     const isPostVideoPreface = phase === 'galaxy' && postVideoStage === 'preface';
     const isPostVideoJump = phase === 'galaxy' && postVideoStage === 'jump';
     const transit = isPostVideoJump ? getPostVideoTransitState(jumpProgress) : null;
-    const tunnelHandoff = transit ? THREE.MathUtils.smootherstep(transit.tunnel, 0.28, 0.44) : 0;
+    const tunnelHandoff = transit ? THREE.MathUtils.smootherstep(transit.tunnel, 0.14, 0.55) : 0;
     const birth =
       phase === 'galaxy'
         ? 1
@@ -201,11 +211,15 @@ export function GalaxyBirthField({
           : 0;
 
     if (pointsRef.current) {
+      const muteTarget =
+        isPostVideoJump && transit !== null
+          ? THREE.MathUtils.smootherstep(transit.coreApproach, 0.05, 0.42)
+          : 0;
       pointsRef.current.material.uniforms.uTime.value += delta;
       pointsRef.current.material.uniforms.uBirth.value = THREE.MathUtils.lerp(
         pointsRef.current.material.uniforms.uBirth.value,
         birth,
-        phase === 'galaxy' ? 0.035 : 0.024,
+        phase === 'galaxy' ? 0.026 : 0.02,
       );
       pointsRef.current.material.uniforms.uFlash.value = THREE.MathUtils.lerp(
         pointsRef.current.material.uniforms.uFlash.value,
@@ -217,36 +231,41 @@ export function GalaxyBirthField({
         ritualPulse,
         0.18,
       );
+      pointsRef.current.material.uniforms.uMuteSpiralRings.value = THREE.MathUtils.lerp(
+        pointsRef.current.material.uniforms.uMuteSpiralRings.value,
+        muteTarget,
+        isPostVideoJump ? 0.14 : 0.07,
+      );
     }
 
     if (groupRef.current) {
+      const damp = (current: number, target: number, lambda: number) =>
+        THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * delta));
       groupRef.current.visible = phase === 'galaxy' || birth > 0.06;
-      groupRef.current.position.x = THREE.MathUtils.lerp(
+      groupRef.current.position.x = damp(
         groupRef.current.position.x,
         isPostVideoPreface ? -0.05 : -0.1,
-        delta * 2.5,
+        3.2,
       );
-      groupRef.current.position.y = THREE.MathUtils.lerp(
+      groupRef.current.position.y = damp(
         groupRef.current.position.y,
         isPostVideoPreface ? -0.06 : -0.12,
-        delta * 2.5,
+        3.2,
       );
       const baseZ = THREE.MathUtils.lerp(-6.1, -8.2, birth);
-      const corePull = transit ? transit.coreApproach * 2.85 : 0;
-      groupRef.current.position.z = THREE.MathUtils.lerp(
-        groupRef.current.position.z,
-        baseZ + corePull,
-        delta * 2.2,
-      );
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(
+      const coreEase =
+        transit !== null ? THREE.MathUtils.smootherstep(transit.coreApproach, 0.04, 0.98) : 0;
+      const corePull = transit ? coreEase * 2.85 : 0;
+      groupRef.current.position.z = damp(groupRef.current.position.z, baseZ + corePull, 3.6);
+      groupRef.current.rotation.y = damp(
         groupRef.current.rotation.y,
         isPostVideoPreface ? 0.03 : 0.01,
-        delta * 1.1,
+        2.4,
       );
-      groupRef.current.rotation.x = THREE.MathUtils.lerp(
+      groupRef.current.rotation.x = damp(
         groupRef.current.rotation.x,
         isPostVideoPreface ? 0.76 : 0.7,
-        delta * 1.2,
+        2.6,
       );
       const spinBase =
         phase === 'galaxy'
@@ -256,12 +275,16 @@ export function GalaxyBirthField({
               ? 0.15
               : 0.17
           : THREE.MathUtils.lerp(0.02, 0.12, birth);
+      const coreSpinEase = transit
+        ? THREE.MathUtils.smootherstep(transit.coreApproach, 0.05, 0.92)
+        : 0;
+      const tunnelSpinEase = transit ? THREE.MathUtils.smootherstep(transit.tunnel, 0.06, 0.88) : 0;
       const spinRate =
         transit === null
           ? spinBase
           : spinBase *
-            THREE.MathUtils.lerp(1, 0.2, transit.coreApproach) *
-            (1 - transit.tunnel * 0.65);
+            THREE.MathUtils.lerp(1, 0.22, coreSpinEase) *
+            (1 - tunnelSpinEase * 0.62);
       spiralSpinRef.current += delta * spinRate;
       groupRef.current.rotation.z = spiralSpinRef.current;
       const baseScale = 0.355 + birth * 0.735 + flash * 0.04 + ritualPulse * 0.025;

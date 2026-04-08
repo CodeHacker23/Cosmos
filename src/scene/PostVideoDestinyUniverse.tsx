@@ -17,7 +17,7 @@ interface PostVideoDestinyUniverseProps {
   jumpProgress: number;
 }
 
-const TUNNEL_INSTANCE_COUNT = 24000;
+const TUNNEL_INSTANCE_COUNT = 27500;
 const DESTINATION_STAR_COUNT = 110000;
 
 const tunnelVertexShader = `
@@ -29,6 +29,7 @@ uniform vec3 uStreakDir;
 uniform vec3 uTunnelAnchor;
 uniform vec3 uCamRight;
 uniform vec3 uCamUp;
+uniform float uAspect;
 uniform float uVisibleSeedMax;
 uniform float uLineGate;
 
@@ -57,24 +58,31 @@ void main() {
   vec3 Rax = normalize(uCamRight);
   vec3 Uax = normalize(uCamUp);
 
-  float expansion = mix(0.28, 1.0, approach) * mix(0.72, 1.0, tunnelMix);
-  float r = aRadius * expansion;
-  vRadial = clamp(aRadius / 36.0, 0.0, 1.0);
-  vAxisDist = r;
+  float asp = max(uAspect, 0.2);
+  float hFill = max(1.0, asp) * 1.14;
+  float vFill = max(1.0, 1.0 / asp) * 1.14;
 
+  float expansion =
+    mix(0.1, 1.0, smoothstep(0.0, 1.0, approach) * approach) * mix(0.42, 1.0, tunnelMix);
+  float r = aRadius * expansion;
   vec2 d = vec2(cos(aAngle), sin(aAngle));
-  vec3 radialOffset = (Rax * d.x + Uax * d.y) * r;
+  vec2 dFill = vec2(d.x * hFill, d.y * vFill);
+  float screenRadial = length(dFill);
+  vRadial = clamp(aRadius / 52.0, 0.0, 1.0);
+  vAxisDist = r * screenRadial;
+
+  vec3 radialOffset = (Rax * d.x * hFill + Uax * d.y * vFill) * r;
 
   float streakLen = max(0.85, (0.35 + uVelocity * 0.038) * (0.5 + aVelocity * 0.5));
   streakLen *= mix(0.75, 1.2, tunnelMix);
   streakLen *= mix(0.45, 1.0, approach);
 
-  float thin = 0.0045 + aThickness * 0.011;
+  float thin = 0.012 + aThickness * 0.026;
 
-  float zSpan = 168.0;
+  float zSpan = 198.0;
   // D смотрит на зрителя; zFlow должен быть <= 0, иначе центр уходит ЗА камеру и половина
   // инстансов клипится → «полосы только сверху». Держим поток только впереди по лучу взгляда.
-  float zFlow = -mod(aDepth + uTime * vel * 4.8, zSpan);
+  float zFlow = -mod(aDepth + uTime * vel * 3.1, zSpan);
   vec3 base = uTunnelAnchor + radialOffset + D * zFlow;
 
   vec3 worldPos = base + Rax * position.x * thin + D * position.y * streakLen;
@@ -89,12 +97,12 @@ void main() {
   float densityOk = step(aSeed, uVisibleSeedMax + 0.001);
 
   vAlpha =
-    (0.34 + approach * 0.62) *
-    (0.42 + tunnelMix * 0.72) *
+    (0.52 + approach * 0.78) *
+    (0.58 + tunnelMix * 0.88) *
     depthFade *
     densityOk *
     uLineGate *
-    1.35;
+    1.72;
 }
 `;
 
@@ -113,18 +121,19 @@ void main() {
     discard;
   }
 
-  float beam = smoothstep(0.5, 0.03, abs(vUv.x - 0.5));
-  float tip = smoothstep(1.0, 0.03, vUv.y);
-  float tail = smoothstep(0.0, 0.1, vUv.y);
+  float beam = smoothstep(0.5, 0.16, abs(vUv.x - 0.5));
+  float tip = smoothstep(1.0, 0.05, vUv.y);
+  float tail = smoothstep(0.0, 0.16, vUv.y);
   float lineCore = beam * tip * tail;
 
-  float hole = smoothstep(1.85, 6.4, vAxisDist);
-  hole = pow(hole, 1.02);
+  float hole = smoothstep(2.8, 19.0, vAxisDist);
+  hole = pow(hole, 0.95);
 
-  vec3 col = vec3(0.98, 0.99, 1.0);
+  vec3 col = mix(vec3(1.0, 0.97, 1.0), vec3(0.55, 0.82, 1.0), 0.55);
+  col = mix(col, vec3(0.95, 0.75, 1.0), 0.22);
 
-  float a = clamp(lineCore * vAlpha * 1.92 * hole, 0.0, 1.0);
-  gl_FragColor = vec4(col * 1.72, a);
+  float a = clamp(lineCore * vAlpha * 3.05 * hole, 0.0, 1.0);
+  gl_FragColor = vec4(col * 2.85, min(1.0, a * 1.12));
 }
 `;
 
@@ -203,10 +212,10 @@ function buildTunnelGeometry() {
   for (let index = 0; index < TUNNEL_INSTANCE_COUNT; index += 1) {
     seeds[index] = Math.random();
     angles[index] = Math.random() * Math.PI * 2;
-    radii[index] = 0.12 + Math.pow(Math.random(), 0.88) * 34.0;
-    depths[index] = Math.random() * 260;
+    radii[index] = 0.18 + Math.pow(Math.random(), 0.58) * 56.0;
+    depths[index] = Math.random() * 380;
     velocities[index] = 0.45 + Math.random() * 1.55;
-    thickness[index] = 0.25 + Math.random() * 0.75;
+    thickness[index] = 0.35 + Math.random() * 0.65;
   }
 
   base.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seeds, 1));
@@ -239,7 +248,8 @@ function PostVideoWarpTunnel({
       uTunnelAnchor: { value: new THREE.Vector3(0, 0, 0) },
       uCamRight: { value: new THREE.Vector3(1, 0, 0) },
       uCamUp: { value: new THREE.Vector3(0, 1, 0) },
-      uVisibleSeedMax: { value: 0.09 },
+      uAspect: { value: 1.78 },
+      uVisibleSeedMax: { value: 0.06 },
       uLineGate: { value: 0 },
     }),
     [],
@@ -268,12 +278,12 @@ function PostVideoWarpTunnel({
 
     materialRef.current.uniforms.uVelocity.value = 1;
     const coreHold = POST_VIDEO_TRANSIT.coreApproach;
-    const rampDuration = Math.max(2.4, POST_VIDEO_TOTAL_DURATION - coreHold - 1.0);
+    const rampDuration = Math.max(8.0, POST_VIDEO_TOTAL_DURATION - coreHold - 4.0);
     velocityTweenRef.current = gsap.to(materialRef.current.uniforms.uVelocity, {
-      value: 72,
+      value: 44,
       duration: rampDuration,
       delay: coreHold,
-      ease: 'power2.in',
+      ease: 'power2.inOut',
     });
 
     return () => {
@@ -300,25 +310,27 @@ function PostVideoWarpTunnel({
     materialRef.current.uniforms.uCamRight.value.set(e[0], e[1], e[2]).normalize();
     materialRef.current.uniforms.uCamUp.value.set(e[4], e[5], e[6]).normalize();
 
+    const perspectiveCam = camera as THREE.PerspectiveCamera;
+    materialRef.current.uniforms.uAspect.value =
+      perspectiveCam.isPerspectiveCamera && perspectiveCam.aspect > 0 ? perspectiveCam.aspect : 1.78;
+
     const { coreApproach, tunnel, galaxyFlight, destination } = transit;
+    const crawlIn = THREE.MathUtils.smootherstep(coreApproach, 0.05, 0.96);
+    const tunnelCresc = Math.pow(THREE.MathUtils.smootherstep(tunnel, 0.02, 0.99), 0.88);
     const lineGate = THREE.MathUtils.clamp(
-      THREE.MathUtils.smootherstep(coreApproach, 0.22, 0.72) * 0.75 +
-        tunnel +
-        galaxyFlight * 0.98 +
-        destination * 0.72,
+      crawlIn * 0.45 + tunnel * 0.94 + galaxyFlight * 0.97 + destination * 0.78,
       0,
       1,
     );
     materialRef.current.uniforms.uLineGate.value = lineGate;
 
+    const densityCrawl = THREE.MathUtils.smootherstep(coreApproach, 0.03, 0.92);
+    const tunnelDensity =
+      tunnelCresc * 0.52 + tunnel * 0.38 + Math.pow(THREE.MathUtils.smootherstep(tunnel, 0.15, 0.95), 1.35) * 0.12;
     const seedMax = THREE.MathUtils.clamp(
-      0.12 +
-        THREE.MathUtils.smootherstep(coreApproach, 0.2, 0.75) * 0.35 +
-        tunnel * 0.52 +
-        galaxyFlight * 0.38 +
-        destination * 0.28,
-      0.1,
-      1.02,
+      0.05 + densityCrawl * 0.28 + tunnelDensity + galaxyFlight * 0.42 + destination * 0.24,
+      0.04,
+      0.84,
     );
     materialRef.current.uniforms.uVisibleSeedMax.value = seedMax;
 

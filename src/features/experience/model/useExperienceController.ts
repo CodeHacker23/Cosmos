@@ -397,7 +397,7 @@ export function useExperienceController() {
     postVideoJumpTimelineRef.current.to(progressState, {
       value: 1,
       duration: POST_VIDEO_JUMP_SECONDS,
-      ease: 'none',
+      ease: 'sine.inOut',
       onUpdate: () => setJumpProgress(progressState.value),
     });
 
